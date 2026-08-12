@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "obras": {
+      "title": "Obras",
+      "description": "Obras e contratos cadastrados",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "codigo": { "type": "string" },
+        "nome": { "type": "string" },
+        "cliente": { "type": "string" },
+        "custoIndiretoAtual": { "type": "number" },
+        "faturamentoDiretoAtual": { "type": "number" },
+        "orcamentoOriginal": {
+          "type": "object",
+          "properties": {
+            "vendaTotal": { "type": "number" },
+            "fatDireto": { "type": "number" },
+            "vendaSemFat": { "type": "number" },
+            "custoDireto": { "type": "number" },
+            "custoIndireto": { "type": "number" },
+            "custoTotal": { "type": "number" },
+            "pis": { "type": "number" },
+            "cofins": { "type": "number" },
+            "iss": { "type": "number" },
+            "vendaLiquida": { "type": "number" },
+            "resultado": { "type": "number" },
+            "margem": { "type": "number" }
+          }
+        }
+      },
+      "required": ["id", "codigo", "nome"]
+    },
+    "cpus": {
+      "title": "CPUs",
+      "description": "Composições de Preço Unitário por obra",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "obraId": { "type": "string" },
+        "code": { "type": "string" },
+        "nome": { "type": "string" },
+        "unidade": { "type": "string" },
+        "prod_teorica": { "type": "number" },
+        "praticabilidade": { "type": "number" },
+        "horas_dia": { "type": "number" },
+        "prod_efetiva": { "type": "number" },
+        "quantidade_prevista": { "type": "number" },
+        "preco_venda": { "type": "number" },
+        "fator_fcd": { "type": "number" },
+        "insumos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id_insumo": { "type": "string" },
+              "tipo": { "type": "string" },
+              "descricao": { "type": "string" },
+              "unid": { "type": "string" },
+              "coef": { "type": "number" },
+              "pr_unit": { "type": "number" }
+            }
+          }
+        },
+        "comentarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "data": { "type": "string" },
+              "autor": { "type": "string" },
+              "texto": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["obraId", "code", "nome"]
+    },
+    "bancoInsumos": {
+      "title": "Insumos Base",
+      "description": "Banco de insumos globais ou específicos por obra",
+      "type": "object",
+      "properties": {
+        "id_insumo": { "type": "string" },
+        "obraId": { "type": "string" },
+        "tipo": { "type": "string" },
+        "descricao": { "type": "string" },
+        "unid": { "type": "string" },
+        "pr_unit": { "type": "number" }
+      },
+      "required": ["id_insumo", "tipo", "descricao", "unid", "pr_unit"]
+    },
+    "userPermissions": {
+      "title": "Permissões de Usuário",
+      "description": "Controle de acesso por e-mail e permissão de obras",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "nome": { "type": "string" },
+        "status": { "type": "string" },
+        "role": { "type": "string" },
+        "obrasPermitidas": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "solicitadoEm": { "type": "string" },
+        "aprovadoPor": { "type": "string" }
+      },
+      "required": ["email", "status", "role"]
+    }
+  }
+}

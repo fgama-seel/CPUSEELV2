@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /obras/{obraId} {
+      allow read, write: if true;
+    }
+
+    match /cpus/{cpuId} {
+      allow read, write: if true;
+    }
+
+    match /bancoInsumos/{insumoId} {
+      allow read, write: if true;
+    }
+
+    match /userPermissions/{userDocId} {
+      allow read, write: if true;
+    }
+  }
+}
+

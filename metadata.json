@@ -1,0 +1,6 @@
+{
+  "name": "Gestão de CPUs - Obras SEEL",
+  "description": "Sistema de composição de preços unitários (CPU), gestão de obras, análise de custos, curva ABC, resumo contratual e controle de acessos com Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
