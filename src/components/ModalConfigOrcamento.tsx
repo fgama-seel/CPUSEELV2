@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, X, Calculator, DollarSign, Percent, AlertCircle } from 'lucide-react';
+import { Settings, Save, X, Calculator, Users, Mail, Plus, Building } from 'lucide-react';
 import { Obra, OrcamentoOriginal } from '../types';
-import { saveObra } from '../services/dbService';
+import { saveObra, updateUserPermission } from '../services/dbService';
 
 interface ModalConfigOrcamentoProps {
   isOpen: boolean;
@@ -16,6 +16,11 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
   onClose,
   onSaveSuccess,
 }) => {
+  const [nomeProjeto, setNomeProjeto] = useState<string>('');
+  const [clienteProjeto, setClienteProjeto] = useState<string>('');
+  const [emailsAcesso, setEmailsAcesso] = useState<string[]>([]);
+  const [novoEmail, setNovoEmail] = useState<string>('');
+
   const [fatDiretoAtual, setFatDiretoAtual] = useState<number>(0);
   const [custoIndiretoAtual, setCustoIndiretoAtual] = useState<number>(0);
 
@@ -36,6 +41,9 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
 
   useEffect(() => {
     if (obra) {
+      setNomeProjeto(obra.nome || '');
+      setClienteProjeto(obra.cliente || 'SEEL Engenharia');
+      setEmailsAcesso(obra.emailsAcesso && obra.emailsAcesso.length > 0 ? obra.emailsAcesso : ['fgama@seel.com.br']);
       setFatDiretoAtual(obra.faturamentoDiretoAtual || 0);
       setCustoIndiretoAtual(obra.custoIndiretoAtual || 0);
 
@@ -67,6 +75,19 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
       setMargem(orig.margem);
     }
   }, [obra, isOpen]);
+
+  const handleAddEmail = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = novoEmail.trim().toLowerCase();
+    if (trimmed && trimmed.includes('@') && !emailsAcesso.includes(trimmed)) {
+      setEmailsAcesso([...emailsAcesso, trimmed]);
+      setNovoEmail('');
+    }
+  };
+
+  const handleRemoveEmail = (emailToRemove: string) => {
+    setEmailsAcesso(emailsAcesso.filter((e) => e !== emailToRemove));
+  };
 
   // Auto-calculate derived fields on edit if user changes main parameters
   const handleAutoCalculate = () => {
@@ -115,6 +136,9 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
 
     const updatedObra: Obra = {
       ...obra,
+      nome: nomeProjeto.trim() || obra.nome,
+      cliente: clienteProjeto.trim() || obra.cliente || 'SEEL Engenharia',
+      emailsAcesso: emailsAcesso,
       faturamentoDiretoAtual: Number(fatDiretoAtual) || 0,
       custoIndiretoAtual: Number(custoIndiretoAtual) || 0,
       orcamentoOriginal: updatedOrcamento,
@@ -122,6 +146,22 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
 
     try {
       await saveObra(updatedObra);
+
+      for (const email of emailsAcesso) {
+        if (email) {
+          await updateUserPermission({
+            id: email,
+            email: email,
+            nome: email.split('@')[0],
+            status: 'APPROVED',
+            role: 'EDITOR',
+            obrasPermitidas: [obra.id],
+            solicitadoEm: new Date().toISOString(),
+            aprovadoPor: 'ADMIN'
+          });
+        }
+      }
+
       onSaveSuccess();
       onClose();
     } catch (err) {
@@ -141,10 +181,10 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white">Configurações do Contrato & Orçado</h3>
+              <h3 className="font-bold text-base text-white">Configurações do Projeto & Orçamento</h3>
               <p className="text-xs text-slate-400">
-                Ajuste os valores atuais e metas do orçamento base para a obra{' '}
-                <span className="text-blue-400 font-bold">{obra.nome}</span>
+                Ajuste o nome do projeto, e-mails de acesso e metas orçamentárias da obra{' '}
+                <span className="text-blue-400 font-bold">{obra.codigo}</span>
               </p>
             </div>
           </div>
@@ -157,11 +197,112 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
         </div>
 
         <form onSubmit={handleSave} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-          {/* Seção 1: Valores Atuais da Obra */}
+          {/* Seção 1: Nome do Projeto e E-mails Autorizados */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+              1. Identificação do Projeto & Controle de Acessos
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nome do Projeto / Serviço *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={nomeProjeto}
+                  onChange={(e) => setNomeProjeto(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  placeholder="Ex: Obra 966 - TRANSPORTE ETA"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Nome completo exibido nos relatórios, dashboards e cabeçalho do orçamento.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Cliente / Órgão
+                </label>
+                <input
+                  type="text"
+                  value={clienteProjeto}
+                  onChange={(e) => setClienteProjeto(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+                  placeholder="SEEL Engenharia / DER"
+                />
+              </div>
+            </div>
+
+            {/* E-mails com acesso */}
+            <div className="pt-3 border-t border-slate-200 space-y-2">
+              <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-indigo-600" />
+                <span>E-mails Autorizados com Acesso a este Projeto</span>
+              </label>
+
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={novoEmail}
+                  onChange={(e) => setNovoEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddEmail();
+                    }
+                  }}
+                  placeholder="Digitar e-mail e pressionar Enter ou clicar em Adicionar"
+                  className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddEmail()}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Adicionar</span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {emailsAcesso.length === 0 ? (
+                  <span className="text-xs text-slate-400 italic">
+                    Nenhum e-mail especificado. (Todos os administradores do sistema têm acesso).
+                  </span>
+                ) : (
+                  emailsAcesso.map((email) => (
+                    <span
+                      key={email}
+                      className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-800 border border-indigo-200 px-2.5 py-1 rounded-full text-xs font-semibold"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>{email}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEmail(email)}
+                        className="text-indigo-400 hover:text-red-600 rounded-full p-0.5 transition"
+                        title="Remover e-mail"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+              <span className="text-[10px] text-slate-500 block">
+                Colaboradores com estes e-mails poderão visualizar e gerenciar as CPUs desta obra.
+              </span>
+            </div>
+          </div>
+
+          {/* Seção 2: Valores Atuais da Obra */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
             <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-              1. Valores Atuais do Contrato
+              2. Valores Atuais do Contrato
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -201,12 +342,12 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
             </div>
           </div>
 
-          {/* Seção 2: Metas do Orçamento Original */}
+          {/* Seção 3: Metas do Orçamento Original */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                2. Informações do Orçamento Original (Base de Comparação)
+                3. Informações do Orçamento Original (Base de Comparação)
               </h4>
 
               <button

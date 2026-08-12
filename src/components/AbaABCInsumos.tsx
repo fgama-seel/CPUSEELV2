@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Boxes, Search, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Boxes, Search, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, Database } from 'lucide-react';
 import { CPU, Obra, ABCInsumoItem } from '../types';
 import { formatMoney, exportarABC } from '../lib/excelExport';
+import { ModalImportarInsumos } from './ModalImportarInsumos';
 
 interface AbaABCInsumosProps {
   cpus: CPU[];
   activeObra: Obra | null;
   onOpenTraceability: (insumoId: string, insumoNome: string) => void;
+  onRefresh?: () => void;
 }
 
 type SortCol = 'id_insumo' | 'descricao' | 'unid' | 'tipo' | 'qtdTotal' | 'custoTotal' | 'percTotal';
@@ -14,11 +16,13 @@ type SortCol = 'id_insumo' | 'descricao' | 'unid' | 'tipo' | 'qtdTotal' | 'custo
 export const AbaABCInsumos: React.FC<AbaABCInsumosProps> = ({
   cpus,
   activeObra,
-  onOpenTraceability
+  onOpenTraceability,
+  onRefresh
 }) => {
   const [filterText, setFilterText] = useState('');
   const [sortCol, setSortCol] = useState<SortCol>('custoTotal');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [showImportInsumosModal, setShowImportInsumosModal] = useState(false);
 
   // Consolidate insumos from all CPUs of active Obra
   const insumoMap: Record<
@@ -114,6 +118,15 @@ export const AbaABCInsumos: React.FC<AbaABCInsumosProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <button
+              onClick={() => setShowImportInsumosModal(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow transition flex items-center gap-1.5 whitespace-nowrap"
+              title="Importar banco de insumos de planilha Excel ou catálogo SEEL"
+            >
+              <Database className="w-4 h-4" />
+              <span>Importar Insumos</span>
+            </button>
+
             <button
               onClick={() => exportarABC(abcList, activeObra || undefined)}
               className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow transition flex items-center gap-1.5 whitespace-nowrap"
@@ -233,6 +246,15 @@ export const AbaABCInsumos: React.FC<AbaABCInsumosProps> = ({
           </table>
         </div>
       </div>
+
+      <ModalImportarInsumos
+        isOpen={showImportInsumosModal}
+        activeObra={activeObra}
+        onClose={() => setShowImportInsumosModal(false)}
+        onImportSuccess={() => {
+          if (onRefresh) onRefresh();
+        }}
+      />
     </div>
   );
 };

@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
-import { Table, Search, FileSpreadsheet, Network, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Table, Search, FileSpreadsheet, Network, ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 import { CPU, Obra } from '../types';
 import { formatMoney, exportarListaCPUs, exportarComposicoes } from '../lib/excelExport';
+import { ModalConfirmarExclusaoCPU } from './ModalConfirmarExclusaoCPU';
 
 interface AbaTabelaCPUsProps {
   cpus: CPU[];
   activeObra: Obra | null;
   onSelectCpu: (cpuId: string) => void;
+  onDeleteCpu?: (cpuId: string) => Promise<void>;
 }
 
 type SortCol = 'code' | 'nome' | 'unidade' | 'quantidade' | 'vendaUnt' | 'vendaTotal' | 'custoUnt' | 'custoTotal' | 'fcd';
 
-export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, onSelectCpu }) => {
+export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, onSelectCpu, onDeleteCpu }) => {
   const [filterText, setFilterText] = useState('');
   const [sortCol, setSortCol] = useState<SortCol>('code');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [cpuToDelete, setCpuToDelete] = useState<CPU | null>(null);
 
   // Compute values for each CPU
   const computedList = cpus.map((cpu) => {
@@ -187,13 +190,16 @@ export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, 
                 >
                   F/CD {renderSortIcon('fcd')}
                 </th>
+                <th className="p-3 text-center border-b border-slate-700 w-12">
+                  Ações
+                </th>
               </tr>
             </thead>
 
             <tbody className="text-xs divide-y divide-slate-200">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-slate-500 italic">
+                  <td colSpan={10} className="p-8 text-center text-slate-500 italic">
                     Nenhuma CPU encontrada.
                   </td>
                 </tr>
@@ -202,6 +208,8 @@ export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, 
                   let fcdColor = 'text-slate-700 font-bold';
                   if (item.fcd < 1) fcdColor = 'text-red-600 font-bold';
                   else if (item.fcd >= 1.2) fcdColor = 'text-emerald-600 font-bold';
+
+                  const originalCpu = cpus.find((c) => c.id === item.id) || null;
 
                   return (
                     <tr
@@ -239,6 +247,18 @@ export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, 
                       <td className={`p-3 text-center ${fcdColor} bg-slate-50 border-l border-slate-200`}>
                         {item.fcd.toFixed(2)}
                       </td>
+                      <td className="p-3 text-center border-l border-slate-200">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (originalCpu) setCpuToDelete(originalCpu);
+                          }}
+                          className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition"
+                          title="Excluir esta CPU"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -247,6 +267,16 @@ export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, 
           </table>
         </div>
       </div>
+
+      <ModalConfirmarExclusaoCPU
+        isOpen={!!cpuToDelete}
+        cpu={cpuToDelete}
+        onClose={() => setCpuToDelete(null)}
+        onConfirmDelete={async (id) => {
+          if (onDeleteCpu) await onDeleteCpu(id);
+          setCpuToDelete(null);
+        }}
+      />
     </div>
   );
 };

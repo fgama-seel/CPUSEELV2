@@ -68,6 +68,7 @@ export interface Obra {
   custoIndiretoAtual: number;
   faturamentoDiretoAtual: number;
   orcamentoOriginal: OrcamentoOriginal;
+  emailsAcesso?: string[];
   createdAt?: string;
 }
 

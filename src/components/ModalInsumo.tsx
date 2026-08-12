@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, X, Check, CloudUpload, PlusCircle } from 'lucide-react';
+import { Box, X, Check, CloudUpload, PlusCircle, Database } from 'lucide-react';
 import { InsumoBase, Insumo, TipoInsumo } from '../types';
 import { formatMoney } from '../lib/excelExport';
 
@@ -9,6 +9,7 @@ interface ModalInsumoProps {
   onClose: () => void;
   onAddInsumoToCpu: (insumo: Insumo) => void;
   onCadastrarNovoInsumo: (novoBase: Omit<InsumoBase, 'id'>) => Promise<InsumoBase>;
+  onOpenImportModal?: () => void;
 }
 
 export const ModalInsumo: React.FC<ModalInsumoProps> = ({
@@ -16,7 +17,8 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
   bancoInsumos,
   onClose,
   onAddInsumoToCpu,
-  onCadastrarNovoInsumo
+  onCadastrarNovoInsumo,
+  onOpenImportModal
 }) => {
   const [selectedBaseId, setSelectedBaseId] = useState('');
   
@@ -90,9 +92,24 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
         <div className="p-5 overflow-y-auto space-y-5 custom-scroll">
           {/* Section 1: Select from Database */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-            <label className="text-xs font-bold text-slate-800 block">
-              1. Selecionar Insumo da Base Cadastrada
-            </label>
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-bold text-slate-800 block">
+                1. Selecionar Insumo da Base Cadastrada ({bancoInsumos.length} itens)
+              </label>
+              {onOpenImportModal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenImportModal();
+                  }}
+                  className="text-purple-700 hover:text-purple-900 text-[11px] font-bold flex items-center gap-1 hover:underline"
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  <span>Importar Insumos em Lote</span>
+                </button>
+              )}
+            </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <select
                 value={selectedBaseId}

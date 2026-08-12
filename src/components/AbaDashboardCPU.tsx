@@ -16,12 +16,14 @@ import {
 } from 'lucide-react';
 import { CPU, Insumo, Obra, Comentario } from '../types';
 import { formatMoney, exportarFichaCPU } from '../lib/excelExport';
+import { ModalConfirmarExclusaoCPU } from './ModalConfirmarExclusaoCPU';
 
 interface AbaDashboardCPUProps {
   cpu: CPU;
   activeObra: Obra | null;
   userEmail: string;
   onSaveCpu: (updatedCpu: CPU) => Promise<void>;
+  onDeleteCpu: (cpuId: string) => Promise<void>;
   onOpenModalInsumo: () => void;
   onRegisterPendingChange: () => void;
 }
@@ -31,6 +33,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
   activeObra,
   userEmail,
   onSaveCpu,
+  onDeleteCpu,
   onOpenModalInsumo,
   onRegisterPendingChange
 }) => {
@@ -38,6 +41,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
   const [novoComentario, setNovoComentario] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const prevPRef = useRef<number>(cpu.prod_efetiva || 1);
 
@@ -222,7 +226,16 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
             <h2 className="text-lg font-extrabold text-slate-800 mt-1">{localCpu.nome}</h2>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-3 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+              title="Excluir esta CPU da obra com confirmação"
+            >
+              <Trash2 className="w-4 h-4 text-red-600" />
+              <span>Excluir CPU</span>
+            </button>
+
             <button
               onClick={() => exportarFichaCPU(localCpu, activeObra || undefined)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow transition flex items-center gap-1.5"
@@ -560,6 +573,13 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
           </div>
         </div>
       </div>
+
+      <ModalConfirmarExclusaoCPU
+        isOpen={showDeleteModal}
+        cpu={localCpu}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirmDelete={onDeleteCpu}
+      />
     </div>
   );
 };

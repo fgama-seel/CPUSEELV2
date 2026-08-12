@@ -9,6 +9,7 @@ import {
   subscribeUserPermissions,
   saveCPU,
   createCPU,
+  deleteCPU,
   createObra,
   createInsumoBase,
   registerUserRequest
@@ -26,6 +27,7 @@ import { AbaDashboardCPU } from './components/AbaDashboardCPU';
 import { ModalNovaObra } from './components/ModalNovaObra';
 import { ModalNovaCPU } from './components/ModalNovaCPU';
 import { ModalInsumo } from './components/ModalInsumo';
+import { ModalImportarInsumos } from './components/ModalImportarInsumos';
 import { ModalComposicoes } from './components/ModalComposicoes';
 import { LoginScreen } from './components/LoginScreen';
 
@@ -58,6 +60,7 @@ export default function App() {
   const [isModalNovaObraOpen, setIsModalNovaObraOpen] = useState<boolean>(false);
   const [isModalNovaCpuOpen, setIsModalNovaCpuOpen] = useState<boolean>(false);
   const [isModalInsumoOpen, setIsModalInsumoOpen] = useState<boolean>(false);
+  const [isModalImportarInsumosOpen, setIsModalImportarInsumosOpen] = useState<boolean>(false);
 
   // Traceability Modal State
   const [traceabilityInsumo, setTraceabilityInsumo] = useState<{ id: string; nome: string } | null>(null);
@@ -127,6 +130,7 @@ export default function App() {
   // Filter allowed Obras for guest user
   const allowedObras = obras.filter((o) => {
     if (isSuperAdmin || currentUserPerm?.obrasPermitidas.includes('*')) return true;
+    if (o.emailsAcesso && o.emailsAcesso.some((e) => e.toLowerCase() === normalizedEmail)) return true;
     return currentUserPerm?.obrasPermitidas.includes(o.id);
   });
 
@@ -177,6 +181,14 @@ export default function App() {
     const newId = await createCPU(cpuData);
     setActiveCpuId(newId);
     setActiveTab('dashboard');
+  };
+
+  const handleDeleteCPU = async (cpuId: string) => {
+    await deleteCPU(cpuId);
+    if (activeCpuId === cpuId) {
+      const remaining = cpus.filter((c) => c.id !== cpuId);
+      setActiveCpuId(remaining.length > 0 ? remaining[0].id : null);
+    }
   };
 
   const handleSaveCpu = async (updatedCpu: CPU) => {
@@ -268,6 +280,7 @@ export default function App() {
                   cpus={cpus}
                   activeObra={activeObra}
                   onSelectCpu={handleSelectCpu}
+                  onDeleteCpu={handleDeleteCPU}
                 />
               )}
 
@@ -295,6 +308,7 @@ export default function App() {
                   activeObra={activeObra}
                   userEmail={userEmail}
                   onSaveCpu={handleSaveCpu}
+                  onDeleteCpu={handleDeleteCPU}
                   onOpenModalInsumo={() => setIsModalInsumoOpen(true)}
                   onRegisterPendingChange={() => setPendingChanges(true)}
                 />
@@ -333,6 +347,13 @@ export default function App() {
         onClose={() => setIsModalInsumoOpen(false)}
         onAddInsumoToCpu={handleAddInsumoToActiveCpu}
         onCadastrarNovoInsumo={createInsumoBase}
+        onOpenImportModal={() => setIsModalImportarInsumosOpen(true)}
+      />
+
+      <ModalImportarInsumos
+        isOpen={isModalImportarInsumosOpen}
+        activeObra={activeObra}
+        onClose={() => setIsModalImportarInsumosOpen(false)}
       />
 
       <ModalComposicoes
