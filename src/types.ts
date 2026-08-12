@@ -1,4 +1,4 @@
-export type TipoInsumo = 'Material' | 'Mão de Obra' | 'Equipamento';
+export type TipoInsumo = 'Material' | 'Mão de Obra' | 'Equipamento' | 'Terceirizado';
 
 export interface Insumo {
   id_insumo: string;

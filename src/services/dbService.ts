@@ -3,10 +3,12 @@ import {
   doc,
   onSnapshot,
   setDoc,
-  deleteDoc
+  deleteDoc,
+  getDocs
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { Obra, CPU, InsumoBase, UserPermission, Insumo, Comentario } from '../types';
+import { getPendingCPUs, savePendingCPUToCache } from '../lib/pendingCache';
 
 export enum OperationType {
   CREATE = 'create',
@@ -215,7 +217,7 @@ export async function createInsumoBase(insumo: Omit<InsumoBase, 'id'>): Promise<
   }
 }
 
-// Update Insumo in BancoInsumos
+// Update Insumo in BancoInsumos and cascade changes to all CPUs
 export async function saveInsumoBase(insumo: InsumoBase): Promise<void> {
   const path = `bancoInsumos/${insumo.id}`;
   try {
@@ -225,6 +227,78 @@ export async function saveInsumoBase(insumo: InsumoBase): Promise<void> {
     handleFirestoreError(err, OperationType.WRITE, path);
     throw err;
   }
+}
+
+/**
+ * Updates an Insumo in BancoInsumos and cascades all changes (price, description, unit, type)
+ * to all CPUs across Firestore that reference this insumo.
+ */
+export async function updateInsumoCascadeToCPUs(
+  insumo: InsumoBase,
+  previousInsumo?: Partial<InsumoBase>
+): Promise<number> {
+  // 1. Save insumo in BancoInsumos
+  await saveInsumoBase(insumo);
+
+  // 2. Query all CPUs from Firestore and update matching insumos
+  let updatedCpusCount = 0;
+  try {
+    const cpusSnap = await getDocs(collection(db, 'cpus'));
+    const targetCodes = new Set<string>();
+    if (insumo.id) targetCodes.add(insumo.id.toLowerCase());
+    if (insumo.id_insumo) targetCodes.add(insumo.id_insumo.toLowerCase());
+    if (previousInsumo?.id) targetCodes.add(previousInsumo.id.toLowerCase());
+    if (previousInsumo?.id_insumo) targetCodes.add(previousInsumo.id_insumo.toLowerCase());
+
+    const prevDescNorm = previousInsumo?.descricao?.trim().toLowerCase();
+
+    for (const docSnap of cpusSnap.docs) {
+      const cpu = { id: docSnap.id, ...docSnap.data() } as CPU;
+      if (!cpu.insumos || !Array.isArray(cpu.insumos)) continue;
+
+      let cpuModified = false;
+      const updatedInsumos = cpu.insumos.map((item) => {
+        const itemCode = (item.id_insumo || '').toLowerCase();
+        const itemDescNorm = (item.descricao || '').trim().toLowerCase();
+
+        const isMatchByCode = itemCode && targetCodes.has(itemCode);
+        const isMatchByDesc = prevDescNorm && itemDescNorm === prevDescNorm;
+
+        if (isMatchByCode || isMatchByDesc) {
+          cpuModified = true;
+          return {
+            ...item,
+            id_insumo: insumo.id_insumo || insumo.id,
+            descricao: insumo.descricao,
+            unid: insumo.unid,
+            pr_unit: insumo.pr_unit,
+            tipo: insumo.tipo
+          };
+        }
+        return item;
+      });
+
+      if (cpuModified) {
+        updatedCpusCount++;
+        const updatedCpu: CPU = {
+          ...cpu,
+          insumos: updatedInsumos,
+          updatedAt: new Date().toISOString()
+        };
+        await saveCPU(updatedCpu);
+
+        // Keep local cache consistent if present
+        const cached = getPendingCPUs();
+        if (cached[cpu.id]) {
+          savePendingCPUToCache(updatedCpu);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao cascatear alterações do insumo nas CPUs:', err);
+  }
+
+  return updatedCpusCount;
 }
 
 // Delete Insumo from BancoInsumos
