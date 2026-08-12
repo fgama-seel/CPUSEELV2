@@ -7,12 +7,15 @@ import {
   Truck,
   HardHat,
   Box,
+  Briefcase,
   MessageSquare,
   Zap,
   Save,
   Check,
   RefreshCw,
-  Info
+  Info,
+  Edit3,
+  X
 } from 'lucide-react';
 import { CPU, Insumo, Obra, Comentario } from '../types';
 import { formatMoney, exportarFichaCPU } from '../lib/excelExport';
@@ -42,13 +45,36 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isEditingHeader, setIsEditingHeader] = useState(false);
+  const [editHeaderForm, setEditHeaderForm] = useState({
+    code: cpu.code,
+    nome: cpu.nome,
+    unidade: cpu.unidade
+  });
 
   const prevPRef = useRef<number>(cpu.prod_efetiva || 1);
 
   // Sync state when cpu prop changes
   useEffect(() => {
     setLocalCpu(cpu);
+    setEditHeaderForm({
+      code: cpu.code,
+      nome: cpu.nome,
+      unidade: cpu.unidade
+    });
   }, [cpu]);
+
+  const handleSaveHeaderEdit = () => {
+    const updatedCpu: CPU = {
+      ...localCpu,
+      code: editHeaderForm.code.trim() || localCpu.code,
+      nome: editHeaderForm.nome.trim() || localCpu.nome,
+      unidade: editHeaderForm.unidade.trim().toUpperCase() || localCpu.unidade
+    };
+    setLocalCpu(updatedCpu);
+    onRegisterPendingChange(updatedCpu);
+    setIsEditingHeader(false);
+  };
 
   useEffect(() => {
     const pt = cpu.prod_teorica || 1;
@@ -233,14 +259,18 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
 
   // Unit costs subtotals
   let subEqp = 0;
-  let subOutros = 0;
+  let subMO = 0;
+  let subMat = 0;
+  let subTerc = 0;
   let custoTotalUnitario = 0;
 
   localCpu.insumos.forEach((ins) => {
     const linhaCusto = (Number(ins.coef) || 0) * (Number(ins.pr_unit) || 0);
     custoTotalUnitario += linhaCusto;
     if (ins.tipo === 'Equipamento') subEqp += linhaCusto;
-    else subOutros += linhaCusto;
+    else if (ins.tipo === 'Mão de Obra') subMO += linhaCusto;
+    else if (ins.tipo === 'Terceirizado') subTerc += linhaCusto;
+    else subMat += linhaCusto;
   });
 
   const isVendaDefinida = localCpu.vendaDefinida === true;
@@ -258,17 +288,95 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
       <div className="max-w-7xl mx-auto space-y-5">
         {/* Top Header Controls */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono bg-indigo-900 text-amber-300 font-bold px-2 py-0.5 rounded text-xs">
-                {localCpu.code}
-              </span>
-              <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-xs font-bold">
-                Unid: {localCpu.unidade}
-              </span>
+          {isEditingHeader ? (
+            <div className="bg-indigo-50/60 p-3 rounded-xl border border-indigo-200 w-full sm:max-w-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                  <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Editar Dados Principais da CPU</span>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleSaveHeaderEdit}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-xs transition"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Aplicar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingHeader(false)}
+                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-[11px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Cancelar</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Código</label>
+                  <input
+                    type="text"
+                    value={editHeaderForm.code}
+                    onChange={(e) => setEditHeaderForm({ ...editHeaderForm, code: e.target.value })}
+                    className="w-full px-2 py-1 text-xs font-bold font-mono bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Unidade</label>
+                  <input
+                    type="text"
+                    value={editHeaderForm.unidade}
+                    onChange={(e) => setEditHeaderForm({ ...editHeaderForm, unidade: e.target.value })}
+                    className="w-full px-2 py-1 text-xs font-bold uppercase bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+                <div className="col-span-3">
+                  <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Nome / Descrição do Serviço</label>
+                  <input
+                    type="text"
+                    value={editHeaderForm.nome}
+                    onChange={(e) => setEditHeaderForm({ ...editHeaderForm, nome: e.target.value })}
+                    className="w-full px-2 py-1 text-xs font-bold bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+              </div>
             </div>
-            <h2 className="text-lg font-extrabold text-slate-800 mt-1">{localCpu.nome}</h2>
-          </div>
+          ) : (
+            <div className="flex items-start gap-2 group">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono bg-indigo-900 text-amber-300 font-bold px-2 py-0.5 rounded text-xs shadow-xs">
+                    {localCpu.code}
+                  </span>
+                  <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-xs font-bold">
+                    Unid: {localCpu.unidade}
+                  </span>
+                </div>
+                <h2 className="text-lg font-extrabold text-slate-800 mt-1 flex items-center gap-2">
+                  <span>{localCpu.nome}</span>
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditHeaderForm({
+                    code: localCpu.code,
+                    nome: localCpu.nome,
+                    unidade: localCpu.unidade
+                  });
+                  setIsEditingHeader(true);
+                }}
+                className="mt-0.5 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition border border-transparent hover:border-indigo-200"
+                title="Editar Nome, Código e Unidade da CPU"
+              >
+                <Edit3 className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -516,9 +624,10 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
                       <tr key={index} className="hover:bg-slate-50 transition">
                         {/* Tipo */}
                         <td className="p-3 whitespace-nowrap font-medium text-slate-600 flex items-center gap-1.5">
-                          {ins.tipo === 'Equipamento' && <Truck className="w-3.5 h-3.5 text-amber-500" />}
-                          {ins.tipo === 'Mão de Obra' && <HardHat className="w-3.5 h-3.5 text-blue-500" />}
-                          {ins.tipo === 'Material' && <Box className="w-3.5 h-3.5 text-slate-400" />}
+                          {ins.tipo === 'Equipamento' && <Truck className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                          {ins.tipo === 'Mão de Obra' && <HardHat className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
+                          {ins.tipo === 'Material' && <Box className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                          {ins.tipo === 'Terceirizado' && <Briefcase className="w-3.5 h-3.5 text-teal-600 shrink-0" />}
                           <span>{ins.tipo}</span>
                         </td>
 
@@ -591,15 +700,25 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
             </table>
           </div>
 
-          <div className="bg-slate-50 p-3 border-t border-slate-200 flex justify-end gap-6 text-xs text-slate-600 font-medium">
+          <div className="bg-slate-50 p-3 border-t border-slate-200 flex flex-wrap justify-end gap-4 md:gap-6 text-xs text-slate-600 font-medium">
             <div>
-              Subtotal Equipamentos:{' '}
+              Equipamentos:{' '}
               <span className="font-bold text-slate-900">{formatMoney(subEqp)}</span>
             </div>
             <div>
-              Subtotal MO / Material:{' '}
-              <span className="font-bold text-slate-900">{formatMoney(subOutros)}</span>
+              Mão de Obra:{' '}
+              <span className="font-bold text-slate-900">{formatMoney(subMO)}</span>
             </div>
+            <div>
+              Materiais:{' '}
+              <span className="font-bold text-slate-900">{formatMoney(subMat)}</span>
+            </div>
+            {subTerc > 0 && (
+              <div>
+                Terceirizados:{' '}
+                <span className="font-bold text-teal-700">{formatMoney(subTerc)}</span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -69,6 +69,7 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
   const countMaterial = bancoInsumos.filter((i) => i.tipo === 'Material').length;
   const countMaoObra = bancoInsumos.filter((i) => i.tipo === 'Mão de Obra').length;
   const countEquipamento = bancoInsumos.filter((i) => i.tipo === 'Equipamento').length;
+  const countTerceirizado = bancoInsumos.filter((i) => i.tipo === 'Terceirizado').length;
 
   const handleSelectAndInsert = (base: InsumoBase) => {
     const insumo: Insumo = {
@@ -124,6 +125,8 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
         return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'Equipamento':
         return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'Terceirizado':
+        return 'bg-teal-50 text-teal-700 border-teal-200';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
     }
@@ -274,6 +277,23 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
                     {countEquipamento}
                   </span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFiltroTipo('Terceirizado')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 border ${
+                    filtroTipo === 'Terceirizado'
+                      ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <span>Terceirizado</span>
+                  <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-extrabold ${
+                    filtroTipo === 'Terceirizado' ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {countTerceirizado}
+                  </span>
+                </button>
               </div>
 
               {/* Real-time Search Bar */}
@@ -385,6 +405,7 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
                       <option value="Material">Material</option>
                       <option value="Mão de Obra">Mão de Obra</option>
                       <option value="Equipamento">Equipamento</option>
+                      <option value="Terceirizado">Terceirizado / Serviço</option>
                     </select>
                   </div>
 

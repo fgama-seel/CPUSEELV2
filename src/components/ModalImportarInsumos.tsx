@@ -139,6 +139,7 @@ export const ModalImportarInsumos: React.FC<ModalImportarInsumosProps> = ({
           let tipo: TipoInsumo = 'Material';
           if (/m[ãa]o|mo|labor/i.test(rawTipo)) tipo = 'Mão de Obra';
           else if (/equip|eqp|eq|maquina/i.test(rawTipo)) tipo = 'Equipamento';
+          else if (/terceiriz|terceiro|servi[çc]|subcontrat/i.test(rawTipo)) tipo = 'Terceirizado';
 
           const unid = String(
             row['unidade'] || row['unid'] || row['Unidade'] || row['Unid.'] || row['Unid'] || 'un'

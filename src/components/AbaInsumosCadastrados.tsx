@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { InsumoBase, TipoInsumo, Obra } from '../types';
 import { formatMoney } from '../lib/excelExport';
-import { saveInsumoBase, deleteInsumoBase, createInsumoBase } from '../services/dbService';
+import { saveInsumoBase, deleteInsumoBase, createInsumoBase, updateInsumoCascadeToCPUs } from '../services/dbService';
 import { ModalImportarInsumos } from './ModalImportarInsumos';
 
 interface AbaInsumosCadastradosProps {
@@ -59,6 +59,9 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
   const [deletingInsumo, setDeletingInsumo] = useState<InsumoBase | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Feedback Banner State
+  const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+
   // Filter logic
   const filtered = bancoInsumos.filter((item) => {
     if (filterTipo !== 'Todos' && item.tipo !== filterTipo) {
@@ -81,6 +84,7 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
   const countMaterial = bancoInsumos.filter((i) => i.tipo === 'Material').length;
   const countMaoObra = bancoInsumos.filter((i) => i.tipo === 'Mão de Obra').length;
   const countEquipamento = bancoInsumos.filter((i) => i.tipo === 'Equipamento').length;
+  const countTerceirizado = bancoInsumos.filter((i) => i.tipo === 'Terceirizado').length;
 
   const handleStartEdit = (insumo: InsumoBase) => {
     setEditingId(insumo.id);
@@ -96,16 +100,28 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
     if (!editingId || !editForm.descricao || !editForm.unid) return;
     setIsSavingEdit(true);
     try {
-      await saveInsumoBase({
+      const originalInsumo = bancoInsumos.find((i) => i.id === editingId);
+      const updatedInsumo: InsumoBase = {
         id: editingId,
         id_insumo: editForm.id_insumo || editingId,
         tipo: editForm.tipo || 'Material',
         descricao: editForm.descricao.trim(),
         unid: editForm.unid.trim().toUpperCase(),
         pr_unit: Number(editForm.pr_unit) || 0
-      });
+      };
+
+      const updatedCpusCount = await updateInsumoCascadeToCPUs(updatedInsumo, originalInsumo);
+
       setEditingId(null);
       setEditForm({});
+
+      setFeedbackMsg(
+        updatedCpusCount > 0
+          ? `Insumo atualizado! Alterações replicadas em ${updatedCpusCount} CPU(s).`
+          : 'Insumo atualizado com sucesso no banco!'
+      );
+      setTimeout(() => setFeedbackMsg(null), 4000);
+
       if (onRefresh) onRefresh();
     } catch (err) {
       console.error('Erro ao atualizar insumo:', err);
@@ -162,6 +178,8 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
         return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'Equipamento':
         return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'Terceirizado':
+        return 'bg-teal-100 text-teal-800 border-teal-200';
       default:
         return 'bg-slate-100 text-slate-800 border-slate-200';
     }
@@ -170,11 +188,19 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
   return (
     <div className="p-4 md:p-6 bg-slate-100 min-h-full">
       <div className="max-w-7xl mx-auto space-y-4">
+        {/* Feedback Banner */}
+        {feedbackMsg && (
+          <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs animate-in fade-in slide-in-from-top-2">
+            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{feedbackMsg}</span>
+          </div>
+        )}
+
         {/* Top Cards Banner */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total de Insumos</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Insumos</p>
               <p className="text-xl font-extrabold text-slate-900 mt-0.5">{totalCount}</p>
             </div>
             <div className="p-2.5 bg-slate-100 rounded-lg text-slate-700">
@@ -182,7 +208,7 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-xs flex items-center justify-between">
+          <div className="bg-white p-3.5 rounded-xl border border-blue-100 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Materiais</p>
               <p className="text-xl font-extrabold text-blue-900 mt-0.5">{countMaterial}</p>
@@ -192,7 +218,7 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-xs flex items-center justify-between">
+          <div className="bg-white p-3.5 rounded-xl border border-amber-100 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Mão de Obra</p>
               <p className="text-xl font-extrabold text-amber-900 mt-0.5">{countMaoObra}</p>
@@ -202,12 +228,22 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-xs flex items-center justify-between">
+          <div className="bg-white p-3.5 rounded-xl border border-purple-100 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold text-purple-600 uppercase tracking-wider">Equipamentos</p>
               <p className="text-xl font-extrabold text-purple-900 mt-0.5">{countEquipamento}</p>
             </div>
             <div className="p-2.5 bg-purple-50 text-purple-600 rounded-lg">
+              <Boxes className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="bg-white p-3.5 rounded-xl border border-teal-100 shadow-xs flex items-center justify-between col-span-2 lg:col-span-1">
+            <div>
+              <p className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">Terceirizados</p>
+              <p className="text-xl font-extrabold text-teal-900 mt-0.5">{countTerceirizado}</p>
+            </div>
+            <div className="p-2.5 bg-teal-50 text-teal-600 rounded-lg">
               <Boxes className="w-5 h-5" />
             </div>
           </div>
@@ -223,7 +259,7 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
                 <span>Insumos Cadastrados no Banco</span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Gerencie todos os materiais, mão de obra e equipamentos cadastrados no sistema.
+                Gerencie todos os materiais, mão de obra, equipamentos e serviços terceirizados cadastrados.
               </p>
             </div>
 
@@ -257,7 +293,7 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
                 Tipo:
               </span>
 
-              {(['Todos', 'Material', 'Mão de Obra', 'Equipamento'] as const).map((tipo) => (
+              {(['Todos', 'Material', 'Mão de Obra', 'Equipamento', 'Terceirizado'] as const).map((tipo) => (
                 <button
                   key={tipo}
                   type="button"
@@ -361,6 +397,7 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
                               <option value="Material">Material</option>
                               <option value="Mão de Obra">Mão de Obra</option>
                               <option value="Equipamento">Equipamento</option>
+                              <option value="Terceirizado">Terceirizado / Serviço</option>
                             </select>
                           </td>
 
@@ -524,6 +561,7 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
                     <option value="Material">Material</option>
                     <option value="Mão de Obra">Mão de Obra</option>
                     <option value="Equipamento">Equipamento</option>
+                    <option value="Terceirizado">Terceirizado / Serviço</option>
                   </select>
                 </div>
               </div>

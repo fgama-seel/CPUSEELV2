@@ -270,14 +270,21 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
 
           if (insumoDesc && insumoDesc !== '-') {
             const id_insumo = String(row['id_insumo'] || row['ID Insumo'] || `INS_${idx}`).trim();
-            const tipo = (row['tipo'] || row['Tipo Insumo'] || row['Tipo'] || 'Material') as TipoInsumo;
+            const rawTipo = String(row['tipo'] || row['Tipo Insumo'] || row['Tipo'] || 'Material').trim();
+            let tipo: TipoInsumo = 'Material';
+            if (/m[ãa]o|mo|labor/i.test(rawTipo)) tipo = 'Mão de Obra';
+            else if (/equip|eqp|eq|maquina/i.test(rawTipo)) tipo = 'Equipamento';
+            else if (/terceiriz|terceiro|servi[çc]|subcontrat/i.test(rawTipo)) tipo = 'Terceirizado';
+            else if (['Material', 'Mão de Obra', 'Equipamento', 'Terceirizado'].includes(rawTipo)) {
+              tipo = rawTipo as TipoInsumo;
+            }
             const unid = String(row['unid_insumo'] || row['Unid. Insumo'] || row['Unid'] || 'un').trim();
             const coef = Number(row['coef'] || row['Coeficiente'] || 1);
             const pr_unit = Number(row['pr_unit'] || row['Preço Unit. (R$)'] || row['Preco Unitario'] || 0);
 
             targetCpu.insumos.push({
               id_insumo,
-              tipo: ['Material', 'Mão de Obra', 'Equipamento'].includes(tipo) ? tipo : 'Material',
+              tipo,
               descricao: insumoDesc,
               unid,
               coef,
@@ -287,7 +294,7 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
             insumosList.push({
               id: id_insumo,
               id_insumo,
-              tipo: ['Material', 'Mão de Obra', 'Equipamento'].includes(tipo) ? tipo : 'Material',
+              tipo,
               descricao: insumoDesc,
               unid,
               pr_unit,
