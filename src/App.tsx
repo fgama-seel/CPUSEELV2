@@ -15,6 +15,12 @@ import {
   registerUserRequest
 } from './services/dbService';
 import { Obra, CPU, InsumoBase, UserPermission, Insumo } from './types';
+import {
+  getPendingCPUs,
+  savePendingCPUToCache,
+  removePendingCPUFromCache,
+  clearAllPendingCPUsFromCache
+} from './lib/pendingCache';
 
 // Components
 import { Header } from './components/Header';
@@ -50,7 +56,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'resumo' | 'tabela' | 'abc' | 'acessos' | 'dashboard'>('resumo');
 
   // Pending Changes State
-  const [pendingChanges, setPendingChanges] = useState<boolean>(false);
+  const [pendingChanges, setPendingChanges] = useState<boolean>(() => Object.keys(getPendingCPUs()).length > 0);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Mobile Sidebar
@@ -110,9 +116,12 @@ export default function App() {
   useEffect(() => {
     if (!activeObraId) return;
     const unsubCpus = subscribeCPUs(activeObraId, (list) => {
-      setCpus(list);
-      if (list.length > 0 && (!activeCpuId || !list.some((c) => c.id === activeCpuId))) {
-        setActiveCpuId(list[0].id);
+      const cachedPending = getPendingCPUs();
+      const mergedList = list.map((item) => cachedPending[item.id] || item);
+      setCpus(mergedList);
+      setPendingChanges(Object.keys(cachedPending).length > 0);
+      if (mergedList.length > 0 && (!activeCpuId || !mergedList.some((c) => c.id === activeCpuId))) {
+        setActiveCpuId(mergedList[0].id);
       }
     });
 
@@ -183,8 +192,18 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
+  const handleRegisterPendingCPU = (updatedCpu: CPU) => {
+    const updatedCache = savePendingCPUToCache(updatedCpu);
+    setPendingChanges(Object.keys(updatedCache).length > 0);
+    setCpus((prevList) =>
+      prevList.map((c) => (c.id === updatedCpu.id ? updatedCpu : c))
+    );
+  };
+
   const handleDeleteCPU = async (cpuId: string) => {
     await deleteCPU(cpuId);
+    const updatedCache = removePendingCPUFromCache(cpuId);
+    setPendingChanges(Object.keys(updatedCache).length > 0);
     if (activeCpuId === cpuId) {
       const remaining = cpus.filter((c) => c.id !== cpuId);
       setActiveCpuId(remaining.length > 0 ? remaining[0].id : null);
@@ -193,9 +212,38 @@ export default function App() {
 
   const handleSaveCpu = async (updatedCpu: CPU) => {
     setIsSaving(true);
-    await saveCPU(updatedCpu);
-    setPendingChanges(false);
-    setIsSaving(false);
+    try {
+      await saveCPU(updatedCpu);
+      const updatedCache = removePendingCPUFromCache(updatedCpu.id);
+      setPendingChanges(Object.keys(updatedCache).length > 0);
+    } catch (err) {
+      console.error('Erro ao salvar no Firestore:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAllPendingCpus = async () => {
+    setIsSaving(true);
+    try {
+      const cache = getPendingCPUs();
+      const pendingList = Object.values(cache);
+      if (pendingList.length > 0) {
+        for (const cpuToSave of pendingList) {
+          await saveCPU(cpuToSave);
+        }
+        clearAllPendingCPUsFromCache();
+        setPendingChanges(false);
+      } else if (activeCpu) {
+        await saveCPU(activeCpu);
+        removePendingCPUFromCache(activeCpu.id);
+        setPendingChanges(false);
+      }
+    } catch (err) {
+      console.error('Erro ao salvar no Firestore:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAddInsumoToActiveCpu = (newInsumo: Insumo) => {
@@ -205,7 +253,7 @@ export default function App() {
       ...activeCpu,
       insumos: updatedInsumos
     };
-    saveCPU(updatedCpu);
+    handleRegisterPendingCPU(updatedCpu);
   };
 
   return (
@@ -227,9 +275,7 @@ export default function App() {
             userPermission={currentUserPerm}
             pendingChanges={pendingChanges}
             isSaving={isSaving}
-            onSavePendingChanges={() => {
-              if (activeCpu) handleSaveCpu(activeCpu);
-            }}
+            onSavePendingChanges={handleSaveAllPendingCpus}
             onLogout={handleLogout}
             onToggleSidebarMobile={() => setIsOpenMobileSidebar(!isOpenMobileSidebar)}
           />
@@ -310,7 +356,7 @@ export default function App() {
                   onSaveCpu={handleSaveCpu}
                   onDeleteCpu={handleDeleteCPU}
                   onOpenModalInsumo={() => setIsModalInsumoOpen(true)}
-                  onRegisterPendingChange={() => setPendingChanges(true)}
+                  onRegisterPendingChange={handleRegisterPendingCPU}
                 />
               ) : activeTab === 'dashboard' ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">

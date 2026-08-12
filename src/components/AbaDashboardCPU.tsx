@@ -25,7 +25,7 @@ interface AbaDashboardCPUProps {
   onSaveCpu: (updatedCpu: CPU) => Promise<void>;
   onDeleteCpu: (cpuId: string) => Promise<void>;
   onOpenModalInsumo: () => void;
-  onRegisterPendingChange: () => void;
+  onRegisterPendingChange: (updatedCpu: CPU) => void;
 }
 
 export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
@@ -99,7 +99,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     };
 
     setLocalCpu(updatedCpu);
-    onRegisterPendingChange();
+    onRegisterPendingChange(updatedCpu);
   };
 
   const handleToggleVendaDefinida = (checked: boolean) => {
@@ -114,7 +114,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
       preco_venda: newPrecoVenda
     };
     setLocalCpu(updatedCpu);
-    onRegisterPendingChange();
+    onRegisterPendingChange(updatedCpu);
   };
 
   const handlePrecoVendaInputChange = (value: number) => {
@@ -124,7 +124,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
       preco_venda: Number(value) || 0
     };
     setLocalCpu(updatedCpu);
-    onRegisterPendingChange();
+    onRegisterPendingChange(updatedCpu);
   };
 
   const handleValueChange = (
@@ -140,7 +140,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
       [field]: Number(value) || 0
     };
     setLocalCpu(updatedCpu);
-    onRegisterPendingChange();
+    onRegisterPendingChange(updatedCpu);
   };
 
   const handleUpdateInsumo = (
@@ -160,7 +160,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     };
 
     setLocalCpu(updatedCpu);
-    onRegisterPendingChange();
+    onRegisterPendingChange(updatedCpu);
   };
 
   const handleRemoveInsumo = (index: number) => {
@@ -170,7 +170,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
       insumos: updatedInsumos
     };
     setLocalCpu(updatedCpu);
-    onRegisterPendingChange();
+    onRegisterPendingChange(updatedCpu);
   };
 
   const handleAddComentario = () => {
@@ -190,7 +190,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
 
     setLocalCpu(updatedCpu);
     setNovoComentario('');
-    onRegisterPendingChange();
+    onRegisterPendingChange(updatedCpu);
   };
 
   const handleSaveToFirebase = async () => {
@@ -275,6 +275,24 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
             >
               <Trash2 className="w-4 h-4 text-red-600" />
               <span>Excluir CPU</span>
+            </button>
+
+            <button
+              onClick={() => handleToggleVendaDefinida(!isVendaDefinida)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border shadow-sm ${
+                isVendaDefinida
+                  ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                  : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+              }`}
+              title="Alterna entre Preço Fixado Manualmente e Cálculo Automático via BDI"
+            >
+              <input
+                type="checkbox"
+                checked={isVendaDefinida}
+                onChange={() => {}}
+                className="w-3.5 h-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer pointer-events-none"
+              />
+              <span>{isVendaDefinida ? 'Venda Definida (Manual)' : 'Venda Automática (BDI)'}</span>
             </button>
 
             <button
@@ -398,20 +416,15 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
           <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-200 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-0.5">
               <label className="text-[11px] font-bold text-blue-900">Preço Venda Unit.</label>
-              <label
-                className="flex items-center gap-1 cursor-pointer bg-blue-100/80 hover:bg-blue-200/80 px-1.5 py-0.5 rounded transition"
-                title="Marque para fixar o preço manualmente. Se desmarcado, calcula automaticamente: Custo Unit. + BDI."
-              >
-                <input
-                  type="checkbox"
-                  checked={isVendaDefinida}
-                  onChange={(e) => handleToggleVendaDefinida(e.target.checked)}
-                  className="w-3.5 h-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                />
-                <span className="text-[10px] font-bold text-indigo-900 whitespace-nowrap select-none">
-                  Venda Definida
+              {isVendaDefinida ? (
+                <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                  Manual
                 </span>
-              </label>
+              ) : (
+                <span className="text-[9px] font-bold text-indigo-800 bg-indigo-100 px-1.5 py-0.5 rounded">
+                  BDI {bdiObra.toFixed(1)}%
+                </span>
+              )}
             </div>
 
             {isVendaDefinida ? (
@@ -423,18 +436,10 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
                   onChange={(e) => handlePrecoVendaInputChange(Number(e.target.value))}
                   className="w-full text-base font-bold text-blue-950 border-b-2 border-blue-400 focus:border-blue-600 focus:outline-none bg-transparent"
                 />
-                <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded mt-1 inline-block">
-                  Preço Manual Fixado
-                </span>
               </div>
             ) : (
-              <div>
-                <div className="text-base font-bold text-blue-900">
-                  {formatMoney(precoVendaUnit)}
-                </div>
-                <span className="text-[9px] font-bold text-indigo-800 bg-indigo-100 px-1.5 py-0.5 rounded mt-1 inline-block">
-                  Calculado via BDI ({bdiObra.toFixed(2)}%)
-                </span>
+              <div className="text-base font-bold text-blue-900">
+                {formatMoney(precoVendaUnit)}
               </div>
             )}
           </div>
