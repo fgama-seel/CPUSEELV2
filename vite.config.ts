@@ -4,8 +4,11 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  // Configuração para GitHub Pages (ex: /CPUSEELV2/) ou caminho relativo ./
+  const repoName = process.env.GITHUB_REPOSITORY ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/` : './';
+  
   return {
-    base: './',
+    base: repoName,
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
