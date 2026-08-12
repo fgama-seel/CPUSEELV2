@@ -23,6 +23,7 @@ export const ModalNovaCPU: React.FC<ModalNovaCPUProps> = ({
   const [horasDia, setHorasDia] = useState<number>(8.8);
   const [quantidade, setQuantidade] = useState<number>(100);
   const [precoVenda, setPrecoVenda] = useState<number>(100);
+  const [vendaDefinida, setVendaDefinida] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen || !activeObra) return null;
@@ -48,6 +49,7 @@ export const ModalNovaCPU: React.FC<ModalNovaCPUProps> = ({
       prod_efetiva: pEfetiva,
       quantidade_prevista: Number(quantidade) || 1,
       preco_venda: Number(precoVenda) || 0,
+      vendaDefinida: vendaDefinida,
       fator_fcd: 1.0,
       insumos: [],
       comentarios: []
@@ -132,10 +134,32 @@ export const ModalNovaCPU: React.FC<ModalNovaCPUProps> = ({
               <input
                 type="number"
                 step="any"
+                disabled={!vendaDefinida}
                 value={precoVenda}
                 onChange={(e) => setPrecoVenda(Number(e.target.value) || 0)}
-                className="w-full border border-slate-300 p-2 rounded-lg text-xs text-right font-bold focus:outline-none focus:border-indigo-500"
+                className={`w-full border border-slate-300 p-2 rounded-lg text-xs text-right font-bold focus:outline-none focus:border-indigo-500 ${
+                  !vendaDefinida ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-800'
+                }`}
               />
+            </div>
+          </div>
+
+          <div className="bg-indigo-50 p-2.5 rounded-lg border border-indigo-200 flex items-center justify-between">
+            <div>
+              <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={vendaDefinida}
+                  onChange={(e) => setVendaDefinida(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                />
+                <span>Venda Definida (Preço Fixado Manualmente)</span>
+              </label>
+              <p className="text-[10px] text-indigo-700 mt-0.5 pl-5">
+                {vendaDefinida
+                  ? 'O preço informado acima será mantido fixo no orçamento.'
+                  : `Sem esta opção, o preço será calculado via Custo Unit. + BDI (${activeObra.bdi ?? 25}%).`}
+              </p>
             </div>
           </div>
 

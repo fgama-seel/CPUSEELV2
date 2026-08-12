@@ -23,6 +23,7 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
 
   const [fatDiretoAtual, setFatDiretoAtual] = useState<number>(0);
   const [custoIndiretoAtual, setCustoIndiretoAtual] = useState<number>(0);
+  const [bdiPadrao, setBdiPadrao] = useState<number>(25);
 
   // Orçado Original fields
   const [vendaTotal, setVendaTotal] = useState<number>(0);
@@ -46,6 +47,7 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
       setEmailsAcesso(obra.emailsAcesso && obra.emailsAcesso.length > 0 ? obra.emailsAcesso : ['fgama@seel.com.br']);
       setFatDiretoAtual(obra.faturamentoDiretoAtual || 0);
       setCustoIndiretoAtual(obra.custoIndiretoAtual || 0);
+      setBdiPadrao(obra.bdi ?? 25);
 
       const orig = obra.orcamentoOriginal || {
         vendaTotal: 50400000.0,
@@ -138,6 +140,7 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
       ...obra,
       nome: nomeProjeto.trim() || obra.nome,
       cliente: clienteProjeto.trim() || obra.cliente || 'SEEL Engenharia',
+      bdi: Number(bdiPadrao) || 0,
       emailsAcesso: emailsAcesso,
       faturamentoDiretoAtual: Number(fatDiretoAtual) || 0,
       custoIndiretoAtual: Number(custoIndiretoAtual) || 0,
@@ -298,14 +301,35 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
             </div>
           </div>
 
-          {/* Seção 2: Valores Atuais da Obra */}
+          {/* Seção 2: Taxa de BDI e Valores Atuais da Obra */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
             <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-              2. Valores Atuais do Contrato
+              2. Parâmetros de BDI & Valores Atuais do Contrato
             </h4>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-indigo-900 mb-1">
+                  Percentual de BDI Padronizado (%) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={bdiPadrao}
+                    onChange={(e) => setBdiPadrao(Number(e.target.value))}
+                    className="w-full bg-white border border-indigo-300 rounded-lg px-3 py-2 text-sm font-bold font-mono text-indigo-900 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                    placeholder="25.00"
+                  />
+                  <span className="absolute right-3 top-2.5 text-xs font-bold text-indigo-400">%</span>
+                </div>
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Aplicado automaticamente às CPUs que não possuem "Venda Definida" manual.
+                </span>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
                   Valor do Faturamento Direto Atual (R$)
@@ -319,7 +343,7 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
                   placeholder="0,00"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  Descontado do faturamento bruto direto para faturamento s/ faturamento.
+                  Descontado do faturamento bruto direto.
                 </span>
               </div>
 
@@ -336,7 +360,7 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
                   placeholder="0,00"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  Custo indireto de canteiro, supervisão e apoio operacional.
+                  Custo indireto de canteiro e apoio.
                 </span>
               </div>
             </div>

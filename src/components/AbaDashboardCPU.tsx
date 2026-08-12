@@ -102,10 +102,39 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     onRegisterPendingChange();
   };
 
+  const handleToggleVendaDefinida = (checked: boolean) => {
+    const bdiObra = activeObra?.bdi ?? 25;
+    const newPrecoVenda = checked
+      ? (Number(localCpu.preco_venda) || custoTotalUnitario * (1 + bdiObra / 100))
+      : custoTotalUnitario * (1 + bdiObra / 100);
+
+    const updatedCpu: CPU = {
+      ...localCpu,
+      vendaDefinida: checked,
+      preco_venda: newPrecoVenda
+    };
+    setLocalCpu(updatedCpu);
+    onRegisterPendingChange();
+  };
+
+  const handlePrecoVendaInputChange = (value: number) => {
+    const updatedCpu: CPU = {
+      ...localCpu,
+      vendaDefinida: true,
+      preco_venda: Number(value) || 0
+    };
+    setLocalCpu(updatedCpu);
+    onRegisterPendingChange();
+  };
+
   const handleValueChange = (
     field: 'quantidade_prevista' | 'preco_venda',
     value: number
   ) => {
+    if (field === 'preco_venda') {
+      handlePrecoVendaInputChange(value);
+      return;
+    }
     const updatedCpu: CPU = {
       ...localCpu,
       [field]: Number(value) || 0
@@ -168,19 +197,26 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     setIsSaving(true);
     setSaveSuccess(false);
 
-    // Compute final F/CD
+    const bdiObra = activeObra?.bdi ?? 25;
     const qtd = Number(localCpu.quantidade_prevista) || 1;
     let custoUnit = 0;
     localCpu.insumos.forEach((ins) => {
       custoUnit += (Number(ins.coef) || 0) * (Number(ins.pr_unit) || 0);
     });
 
+    const isDefinida = localCpu.vendaDefinida === true;
+    const finalPrecoVenda = isDefinida
+      ? (Number(localCpu.preco_venda) || 0)
+      : custoUnit * (1 + bdiObra / 100);
+
     const custoTotalServico = custoUnit * qtd;
-    const vendaTotalServico = (Number(localCpu.preco_venda) || 0) * qtd;
+    const vendaTotalServico = finalPrecoVenda * qtd;
     const fcd = custoTotalServico > 0 ? vendaTotalServico / custoTotalServico : 0;
 
     const finalCpu: CPU = {
       ...localCpu,
+      preco_venda: finalPrecoVenda,
+      vendaDefinida: isDefinida,
       fator_fcd: fcd
     };
 
@@ -189,6 +225,8 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
   };
+
+  const bdiObra = activeObra?.bdi ?? 25;
 
   // Unit costs subtotals
   let subEqp = 0;
@@ -202,9 +240,12 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     else subOutros += linhaCusto;
   });
 
-  const qtdServico = Number(localCpu.quantidade_prevista) || 1;
-  const precoVendaUnit = Number(localCpu.preco_venda) || 0;
+  const isVendaDefinida = localCpu.vendaDefinida === true;
+  const precoVendaUnit = isVendaDefinida
+    ? (Number(localCpu.preco_venda) || 0)
+    : custoTotalUnitario * (1 + bdiObra / 100);
 
+  const qtdServico = Number(localCpu.quantidade_prevista) || 1;
   const custoTotalServico = custoTotalUnitario * qtdServico;
   const vendaTotalServico = precoVendaUnit * qtdServico;
   const fatorFcd = custoTotalServico > 0 ? vendaTotalServico / custoTotalServico : 0;
@@ -354,15 +395,48 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
             <div className="text-base font-bold text-slate-800">{formatMoney(custoTotalUnitario)}</div>
           </div>
 
-          <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-200">
-            <label className="text-[11px] font-bold text-blue-800 mb-0.5 block">Preço Venda Unit.</label>
-            <input
-              type="number"
-              step="any"
-              value={localCpu.preco_venda}
-              onChange={(e) => handleValueChange('preco_venda', Number(e.target.value))}
-              className="w-full text-base font-bold text-blue-950 border-b-2 border-blue-300 focus:border-blue-600 focus:outline-none bg-transparent"
-            />
+          <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-200 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-0.5">
+              <label className="text-[11px] font-bold text-blue-900">Preço Venda Unit.</label>
+              <label
+                className="flex items-center gap-1 cursor-pointer bg-blue-100/80 hover:bg-blue-200/80 px-1.5 py-0.5 rounded transition"
+                title="Marque para fixar o preço manualmente. Se desmarcado, calcula automaticamente: Custo Unit. + BDI."
+              >
+                <input
+                  type="checkbox"
+                  checked={isVendaDefinida}
+                  onChange={(e) => handleToggleVendaDefinida(e.target.checked)}
+                  className="w-3.5 h-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                />
+                <span className="text-[10px] font-bold text-indigo-900 whitespace-nowrap select-none">
+                  Venda Definida
+                </span>
+              </label>
+            </div>
+
+            {isVendaDefinida ? (
+              <div>
+                <input
+                  type="number"
+                  step="any"
+                  value={localCpu.preco_venda}
+                  onChange={(e) => handlePrecoVendaInputChange(Number(e.target.value))}
+                  className="w-full text-base font-bold text-blue-950 border-b-2 border-blue-400 focus:border-blue-600 focus:outline-none bg-transparent"
+                />
+                <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded mt-1 inline-block">
+                  Preço Manual Fixado
+                </span>
+              </div>
+            ) : (
+              <div>
+                <div className="text-base font-bold text-blue-900">
+                  {formatMoney(precoVendaUnit)}
+                </div>
+                <span className="text-[9px] font-bold text-indigo-800 bg-indigo-100 px-1.5 py-0.5 rounded mt-1 inline-block">
+                  Calculado via BDI ({bdiObra.toFixed(2)}%)
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="bg-white p-2.5 rounded-lg border border-slate-200">

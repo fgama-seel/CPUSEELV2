@@ -9,12 +9,12 @@ export function formatMoney(val: number): string {
 }
 
 export function exportarFichaCPU(cpu: CPU, obra?: Obra) {
+  const bdi = obra?.bdi ?? 25;
   const pt = cpu.prod_teorica || 1;
   const prat = cpu.praticabilidade || 1;
   const hd = cpu.horas_dia || 8.8;
   const p = hd > 0 ? (pt * prat) / hd : 1;
   const qtd = cpu.quantidade_prevista || 1;
-  const vendaUnit = cpu.preco_venda || 0;
 
   let custoUnit = 0;
   const dadosInsumos: any[] = [];
@@ -36,6 +36,7 @@ export function exportarFichaCPU(cpu: CPU, obra?: Obra) {
     });
   }
 
+  const vendaUnit = cpu.vendaDefinida ? (cpu.preco_venda || 0) : custoUnit * (1 + bdi / 100);
   const custoTotal = custoUnit * qtd;
   const vendaTotal = vendaUnit * qtd;
   const fcd = custoTotal > 0 ? vendaTotal / custoTotal : 0;
@@ -71,9 +72,9 @@ export function exportarFichaCPU(cpu: CPU, obra?: Obra) {
 }
 
 export function exportarListaCPUs(cpus: CPU[], obra?: Obra) {
+  const bdi = obra?.bdi ?? 25;
   const dadosExcel = cpus.map((cpu) => {
     const qtd = cpu.quantidade_prevista || 1;
-    const vendaUnt = cpu.preco_venda || 0;
     let custoUnt = 0;
     if (cpu.insumos) {
       cpu.insumos.forEach((ins) => {
@@ -81,11 +82,14 @@ export function exportarListaCPUs(cpus: CPU[], obra?: Obra) {
       });
     }
 
+    const vendaUnt = cpu.vendaDefinida ? (cpu.preco_venda || 0) : custoUnt * (1 + bdi / 100);
+
     return {
       'ID CPU': cpu.code,
       Serviço: cpu.nome,
       'Unid.': cpu.unidade,
       Quantidade: qtd,
+      'Venda Definida': cpu.vendaDefinida ? 'Sim (Manual)' : `Não (BDI ${bdi}%)`,
       'Venda Unit. (R$)': vendaUnt,
       'Venda Total (R$)': vendaUnt * qtd,
       'Custo Unit. (R$)': custoUnt,

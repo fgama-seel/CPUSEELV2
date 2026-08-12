@@ -38,6 +38,7 @@ export interface CPU {
   prod_efetiva: number;
   quantidade_prevista: number;
   preco_venda: number;
+  vendaDefinida?: boolean; // If true, sale price is fixed manually. If false/undefined, price is calculated as custoUnit * (1 + bdi / 100)
   fator_fcd: number;
   insumos: Insumo[];
   comentarios: Comentario[];
@@ -65,6 +66,7 @@ export interface Obra {
   codigo: string; // e.g. "966"
   nome: string; // e.g. "Obra 966 - TRANSPORTE ETA"
   cliente: string;
+  bdi?: number; // Percentual de BDI (%) ex: 25.0
   custoIndiretoAtual: number;
   faturamentoDiretoAtual: number;
   orcamentoOriginal: OrcamentoOriginal;

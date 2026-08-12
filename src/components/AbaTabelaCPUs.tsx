@@ -19,10 +19,11 @@ export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, 
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [cpuToDelete, setCpuToDelete] = useState<CPU | null>(null);
 
+  const bdiObra = activeObra?.bdi ?? 25;
+
   // Compute values for each CPU
   const computedList = cpus.map((cpu) => {
     const qtd = cpu.quantidade_prevista || 1;
-    const vendaUnt = cpu.preco_venda || 0;
     let custoUnt = 0;
 
     if (cpu.insumos) {
@@ -30,6 +31,11 @@ export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, 
         custoUnt += (Number(ins.coef) || 0) * (Number(ins.pr_unit) || 0);
       });
     }
+
+    const isVendaDefinida = cpu.vendaDefinida === true;
+    const vendaUnt = isVendaDefinida
+      ? (cpu.preco_venda || 0)
+      : custoUnt * (1 + bdiObra / 100);
 
     const custoTotal = custoUnt * qtd;
     const vendaTotal = vendaUnt * qtd;
@@ -45,7 +51,8 @@ export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, 
       vendaTotal,
       custoUnt,
       custoTotal,
-      fcd
+      fcd,
+      isVendaDefinida
     };
   });
 
@@ -233,7 +240,16 @@ export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, 
                         })}
                       </td>
                       <td className="p-3 text-right text-blue-700 font-medium">
-                        {formatMoney(item.vendaUnt)}
+                        <div>{formatMoney(item.vendaUnt)}</div>
+                        {item.isVendaDefinida ? (
+                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-bold inline-block">
+                            Manual
+                          </span>
+                        ) : (
+                          <span className="text-[9px] bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded font-semibold inline-block">
+                            BDI {bdiObra}%
+                          </span>
+                        )}
                       </td>
                       <td className="p-3 text-right font-bold text-blue-900">
                         {formatMoney(item.vendaTotal)}
