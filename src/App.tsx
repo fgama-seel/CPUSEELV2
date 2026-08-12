@@ -310,7 +310,7 @@ export default function App() {
             )}
 
             {/* Main Tab View */}
-            <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
+            <main className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-100">
               {activeTab === 'resumo' && (
                 <AbaResumo
                   activeObra={activeObra}

@@ -299,7 +299,7 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
               </div>
 
               {/* Results List */}
-              <div className="space-y-1.5 max-h-[360px] overflow-y-auto custom-scroll pr-1">
+              <div className="space-y-1.5 max-h-[55vh] min-h-[280px] overflow-y-auto custom-scroll pr-1">
                 {insumosFiltrados.length > 0 ? (
                   insumosFiltrados.map((item) => (
                     <div
