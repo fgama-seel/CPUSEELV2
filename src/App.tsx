@@ -28,6 +28,7 @@ import { Sidebar } from './components/Sidebar';
 import { AbaResumo } from './components/AbaResumo';
 import { AbaTabelaCPUs } from './components/AbaTabelaCPUs';
 import { AbaABCInsumos } from './components/AbaABCInsumos';
+import { AbaInsumosCadastrados } from './components/AbaInsumosCadastrados';
 import { AbaGestaoAcessos } from './components/AbaGestaoAcessos';
 import { AbaDashboardCPU } from './components/AbaDashboardCPU';
 import { ModalNovaObra } from './components/ModalNovaObra';
@@ -53,7 +54,7 @@ export default function App() {
   const [bancoInsumos, setBancoInsumos] = useState<InsumoBase[]>([]);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'resumo' | 'tabela' | 'abc' | 'acessos' | 'dashboard'>('resumo');
+  const [activeTab, setActiveTab] = useState<'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'dashboard'>('resumo');
 
   // Pending Changes State
   const [pendingChanges, setPendingChanges] = useState<boolean>(() => Object.keys(getPendingCPUs()).length > 0);
@@ -337,6 +338,15 @@ export default function App() {
                   onOpenTraceability={(insumoId, insumoNome) => {
                     setTraceabilityInsumo({ id: insumoId, nome: insumoNome });
                   }}
+                />
+              )}
+
+              {activeTab === 'insumos' && (
+                <AbaInsumosCadastrados
+                  bancoInsumos={bancoInsumos}
+                  activeObra={activeObra}
+                  userPermission={currentUserPerm}
+                  userEmail={userEmail}
                 />
               )}
 

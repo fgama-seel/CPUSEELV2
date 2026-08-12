@@ -11,7 +11,10 @@ import {
   Info,
   Settings,
   Database,
-  Upload
+  Table,
+  Layers,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Obra, CPU } from '../types';
 import { formatMoney } from '../lib/excelExport';
@@ -34,6 +37,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({ activeObra, cpus, onRefres
 
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCpuTable, setShowCpuTable] = useState(true);
 
   if (!activeObra) {
     return (
@@ -45,22 +49,42 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({ activeObra, cpus, onRefres
     );
   }
 
+  const bdiObra = activeObra.bdi ?? 25;
+
   // Calculate live values from active CPUs
   let custoDiretoCalculado = 0;
   let vendaTotalCalculada = 0;
 
-  cpus.forEach((cpu) => {
-    const qtd = Number(cpu.quantidade_prevista) || 1;
-    const precoVenda = Number(cpu.preco_venda) || 0;
-    vendaTotalCalculada += precoVenda * qtd;
+  const cpusCalculadas = cpus.map((cpu) => {
+    const qtd = Number(cpu.quantidade_prevista) > 0 ? Number(cpu.quantidade_prevista) : 1;
 
     let custoUnt = 0;
-    if (cpu.insumos) {
+    if (cpu.insumos && Array.isArray(cpu.insumos)) {
       cpu.insumos.forEach((ins) => {
         custoUnt += (Number(ins.coef) || 0) * (Number(ins.pr_unit) || 0);
       });
     }
-    custoDiretoCalculado += custoUnt * qtd;
+
+    const isVendaDefinida = cpu.vendaDefinida === true;
+    const precoVendaUnt = isVendaDefinida
+      ? (Number(cpu.preco_venda) || 0)
+      : (Number(cpu.preco_venda) > 0 ? Number(cpu.preco_venda) : custoUnt * (1 + bdiObra / 100));
+
+    const custoTotalCpu = custoUnt * qtd;
+    const vendaTotalCpu = precoVendaUnt * qtd;
+
+    custoDiretoCalculado += custoTotalCpu;
+    vendaTotalCalculada += vendaTotalCpu;
+
+    return {
+      ...cpu,
+      qtd,
+      custoUnt,
+      precoVendaUnt,
+      custoTotalCpu,
+      vendaTotalCpu,
+      isVendaDefinida
+    };
   });
 
   const fatDireto = editingFatDireto ? fatDiretoValue : (activeObra.faturamentoDiretoAtual || 0);
@@ -466,6 +490,102 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({ activeObra, cpus, onRefres
               *Desvios em vermelho indicam impacto negativo no resultado do contrato.
             </p>
           </div>
+        </div>
+
+        {/* Breakdown of CPUs defining Contract Value */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+            <div>
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <Table className="w-4 h-4 text-indigo-600" />
+                <span>Composição do Valor do Contrato por CPU</span>
+                <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-extrabold">
+                  {cpusCalculadas.length} CPUs
+                </span>
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Cálculo do contrato: Qtd Prevista × Preço de Venda Unitário de cada composição.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowCpuTable(!showCpuTable)}
+              className="text-slate-500 hover:text-slate-800 p-1.5 rounded-lg hover:bg-slate-200/60 transition"
+              title="Expandir/Recolher Tabela"
+            >
+              {showCpuTable ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </div>
+
+          {showCpuTable && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[750px]">
+                <thead>
+                  <tr className="bg-slate-800 text-white text-[11px] uppercase tracking-wider">
+                    <th className="p-3 border-b border-slate-700 w-28">Código</th>
+                    <th className="p-3 border-b border-slate-700">Serviço / Composição</th>
+                    <th className="p-3 text-center border-b border-slate-700 w-20">Unid.</th>
+                    <th className="p-3 text-right border-b border-slate-700 w-28">Qtd Prevista</th>
+                    <th className="p-3 text-right border-b border-slate-700 w-36">Preço Venda Unit.</th>
+                    <th className="p-3 text-center border-b border-slate-700 w-32">Tipo Venda</th>
+                    <th className="p-3 text-right border-b border-slate-700 w-40">Valor do Contrato (R$)</th>
+                  </tr>
+                </thead>
+                <tbody className="text-xs divide-y divide-slate-200">
+                  {cpusCalculadas.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-500 italic">
+                        Nenhuma CPU cadastrada nesta obra.
+                      </td>
+                    </tr>
+                  ) : (
+                    cpusCalculadas.map((cpu) => (
+                      <tr key={cpu.id} className="hover:bg-slate-50 transition">
+                        <td className="p-3 font-mono font-bold text-slate-600">{cpu.code}</td>
+                        <td className="p-3 font-bold text-slate-800">{cpu.nome}</td>
+                        <td className="p-3 text-center text-slate-600 uppercase font-semibold">{cpu.unidade || 'UN'}</td>
+                        <td className="p-3 text-right font-mono font-bold text-slate-700">{cpu.qtd.toLocaleString('pt-BR')}</td>
+                        <td className="p-3 text-right font-mono font-bold text-indigo-700">
+                          {formatMoney(cpu.precoVendaUnt)}
+                        </td>
+                        <td className="p-3 text-center">
+                          {cpu.isVendaDefinida ? (
+                            <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-amber-200">
+                              Manual
+                            </span>
+                          ) : (
+                            <span className="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded border border-blue-200">
+                              BDI ({bdiObra}%)
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right font-mono font-extrabold text-emerald-700">
+                          {formatMoney(cpu.vendaTotalCpu)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {cpusCalculadas.length > 0 && (
+                  <tfoot>
+                    <tr className="bg-slate-100 font-extrabold text-slate-900 border-t-2 border-slate-300">
+                      <td colSpan={3} className="p-3 text-right uppercase text-xs">
+                        Total Geral do Contrato:
+                      </td>
+                      <td className="p-3 text-right font-mono text-xs">
+                        {cpusCalculadas.reduce((acc, c) => acc + c.qtd, 0).toLocaleString('pt-BR')}
+                      </td>
+                      <td className="p-3 text-right">--</td>
+                      <td className="p-3 text-center">--</td>
+                      <td className="p-3 text-right font-mono text-sm text-emerald-700">
+                        {formatMoney(vendaTotalCalculada)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Modals */}

@@ -214,6 +214,29 @@ export async function createInsumoBase(insumo: Omit<InsumoBase, 'id'>): Promise<
   }
 }
 
+// Update Insumo in BancoInsumos
+export async function saveInsumoBase(insumo: InsumoBase): Promise<void> {
+  const path = `bancoInsumos/${insumo.id}`;
+  try {
+    const docRef = doc(db, 'bancoInsumos', insumo.id);
+    await setDoc(docRef, insumo, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+    throw err;
+  }
+}
+
+// Delete Insumo from BancoInsumos
+export async function deleteInsumoBase(id: string): Promise<void> {
+  const path = `bancoInsumos/${id}`;
+  try {
+    await deleteDoc(doc(db, 'bancoInsumos', id));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+    throw err;
+  }
+}
+
 // Update User Permission
 export async function updateUserPermission(perm: UserPermission): Promise<void> {
   const docId = perm.email.toLowerCase().trim();

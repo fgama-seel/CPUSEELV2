@@ -10,7 +10,8 @@ import {
   Building,
   ChevronDown,
   Layers,
-  X
+  X,
+  Package
 } from 'lucide-react';
 import { Obra, CPU } from '../types';
 
@@ -19,13 +20,13 @@ interface SidebarProps {
   activeObra: Obra | null;
   cpus: CPU[];
   activeCpu: CPU | null;
-  activeTab: 'resumo' | 'tabela' | 'abc' | 'acessos' | 'dashboard';
+  activeTab: 'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'dashboard';
   userEmail: string;
   isAdmin: boolean;
   isOpenMobile: boolean;
   onSelectObra: (obraId: string) => void;
   onSelectCpu: (cpuId: string) => void;
-  onSelectTab: (tab: 'resumo' | 'tabela' | 'abc' | 'acessos' | 'dashboard') => void;
+  onSelectTab: (tab: 'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'dashboard') => void;
   onOpenModalNovaObra: () => void;
   onOpenModalNovaCPU: () => void;
   onCloseMobile: () => void;
@@ -201,6 +202,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="w-2 h-2 rounded-full bg-purple-400 shrink-0"></span>
           <Boxes className="w-4 h-4 text-purple-400 shrink-0" />
           <span>ABC de Insumos</span>
+        </button>
+
+        <button
+          onClick={() => {
+            onSelectTab('insumos');
+            onCloseMobile();
+          }}
+          className={`w-full text-left px-3 py-2 rounded text-xs font-medium flex items-center gap-3 transition ${
+            activeTab === 'insumos'
+              ? 'bg-slate-800 text-white font-bold shadow-sm'
+              : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>
+          <Package className="w-4 h-4 text-indigo-400 shrink-0" />
+          <span>Insumos Cadastrados</span>
         </button>
 
         {isAdmin && (

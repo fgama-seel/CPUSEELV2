@@ -45,9 +45,12 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
 
   const prevPRef = useRef<number>(cpu.prod_efetiva || 1);
 
-  // Sync state when selected CPU changes
+  // Sync state when cpu prop changes
   useEffect(() => {
     setLocalCpu(cpu);
+  }, [cpu]);
+
+  useEffect(() => {
     const pt = cpu.prod_teorica || 1;
     const prat = cpu.praticabilidade || 1;
     const hd = cpu.horas_dia || 8.8;
