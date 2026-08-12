@@ -1,21 +1,10 @@
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /obras/{obraId} {
-      allow read, write: if true;
-    }
+import {StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
 
-    match /cpus/{cpuId} {
-      allow read, write: if true;
-    }
-
-    match /bancoInsumos/{insumoId} {
-      allow read, write: if true;
-    }
-
-    match /userPermissions/{userDocId} {
-      allow read, write: if true;
-    }
-  }
-}
-
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

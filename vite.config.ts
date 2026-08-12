@@ -1,26 +1,12 @@
-import tailwindcss from '@tailwindcss/vite';
-import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
-
-export default defineConfig(() => {
-  // Configuração para GitHub Pages (ex: /CPUSEELV2/) ou caminho relativo ./
-  const repoName = process.env.GITHUB_REPOSITORY ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/` : './';
-  
-  return {
-    base: repoName,
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
-    },
-  };
-});
+{
+  "projectId": "gen-lang-client-0066157957",
+  "appId": "1:47335722553:web:be311f27292ab7733b47e8",
+  "apiKey": "AIzaSyAItJAbvnw-M5sm2wl4NzGfNo03_GufnsU",
+  "authDomain": "gen-lang-client-0066157957.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-45f52aa1-1749-43f1-a396-ffaa86ac849b",
+  "storageBucket": "gen-lang-client-0066157957.firebasestorage.app",
+  "messagingSenderId": "47335722553",
+  "measurementId": "",
+  "oAuthClientId": "47335722553-vtf4ae94uiuj695i6obtomeb42rctebd.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
+}
