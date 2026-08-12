@@ -14,16 +14,6 @@ export const ADMIN_EMAIL = 'fgama@seel.com.br';
 
 export async function seedInitialDataIfNeeded() {
   try {
-    // Delete any existing sample CPUs from Firestore if present
-    const sampleCpuIds = ['cpu-18010102', 'cpu-05020101', 'cpu-03010105', 'cpu-09010202'];
-    for (const sampleId of sampleCpuIds) {
-      try {
-        await deleteDoc(doc(db, 'cpus', sampleId));
-      } catch {
-        // ignore if not found
-      }
-    }
-
     const obrasSnap = await getDocs(collection(db, 'obras'));
     if (!obrasSnap.empty) {
       // Data already exists, check admin permission

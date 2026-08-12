@@ -138,7 +138,8 @@ export async function saveCPU(cpu: CPU): Promise<void> {
 
 // Create a new CPU
 export async function createCPU(cpuData: Omit<CPU, 'id'>): Promise<string> {
-  const customId = `cpu-${cpuData.code.replace(/[^a-zA-Z0-9]/g, '') || Date.now()}`;
+  const sanitizedCode = cpuData.code.replace(/[^a-zA-Z0-9_-]/g, '') || `${Date.now()}`;
+  const customId = `cpu-${cpuData.obraId}-${sanitizedCode}`;
   const path = `cpus/${customId}`;
   try {
     const colRef = collection(db, 'cpus');
