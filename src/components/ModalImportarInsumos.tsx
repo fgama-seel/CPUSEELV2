@@ -69,7 +69,7 @@ export const ModalImportarInsumos: React.FC<ModalImportarInsumosProps> = ({
       for (const insData of CATALOGO_INSUMOS_PADRAO_SEEL) {
         await createInsumoBase({
           ...insData,
-          obraId: activeObra?.id || 'global'
+          obraId: activeObra?.id || 'obra-966'
         });
         count++;
       }
@@ -164,7 +164,7 @@ export const ModalImportarInsumos: React.FC<ModalImportarInsumosProps> = ({
               descricao,
               unid,
               pr_unit,
-              obraId: activeObra?.id || 'global'
+              obraId: activeObra?.id || 'obra-966'
             });
           }
         });
@@ -197,7 +197,7 @@ export const ModalImportarInsumos: React.FC<ModalImportarInsumosProps> = ({
       for (const insData of previewInsumos) {
         await createInsumoBase({
           ...insData,
-          obraId: activeObra?.id || 'global'
+          obraId: activeObra?.id || 'obra-966'
         });
         count++;
       }

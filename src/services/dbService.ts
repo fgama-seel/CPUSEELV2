@@ -93,13 +93,18 @@ export function subscribeCPUs(obraId: string | null, callback: (cpus: CPU[]) => 
   });
 }
 
-// Subscribe to Banco de Insumos
-export function subscribeBancoInsumos(callback: (insumos: InsumoBase[]) => void) {
+// Subscribe to Banco de Insumos for a specific Obra
+export function subscribeBancoInsumos(obraId: string | null, callback: (insumos: InsumoBase[]) => void) {
   const colRef = collection(db, 'bancoInsumos');
   return onSnapshot(colRef, (snapshot) => {
     const list: InsumoBase[] = [];
     snapshot.forEach((docSnap) => {
-      list.push({ id: docSnap.id, ...docSnap.data() } as InsumoBase);
+      const data = docSnap.data() as InsumoBase;
+      const itemObraId = data.obraId;
+      // Filter by obraId: match explicitly, or default legacy insumos to 'obra-966'
+      if (!obraId || itemObraId === obraId || (!itemObraId && obraId === 'obra-966')) {
+        list.push({ id: docSnap.id, ...data });
+      }
     });
     list.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || ''));
     callback(list);
@@ -254,6 +259,7 @@ export async function updateInsumoCascadeToCPUs(
 
     for (const docSnap of cpusSnap.docs) {
       const cpu = { id: docSnap.id, ...docSnap.data() } as CPU;
+      if (insumo.obraId && cpu.obraId && cpu.obraId !== insumo.obraId) continue;
       if (!cpu.insumos || !Array.isArray(cpu.insumos)) continue;
 
       let cpuModified = false;

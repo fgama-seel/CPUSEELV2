@@ -104,6 +104,7 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
       const updatedInsumo: InsumoBase = {
         id: editingId,
         id_insumo: editForm.id_insumo || editingId,
+        obraId: editForm.obraId || activeObra?.id || 'obra-966',
         tipo: editForm.tipo || 'Material',
         descricao: editForm.descricao.trim(),
         unid: editForm.unid.trim().toUpperCase(),
@@ -154,7 +155,8 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
         tipo: novoTipo,
         descricao: novoDesc.trim(),
         unid: novoUnid.trim().toUpperCase(),
-        pr_unit: Number(novoPreco) || 0
+        pr_unit: Number(novoPreco) || 0,
+        obraId: activeObra?.id || 'obra-966'
       });
       setShowNewModal(false);
       setNovoCodigo('');
@@ -256,10 +258,10 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
             <div>
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <Boxes className="w-5 h-5 text-indigo-600" />
-                <span>Insumos Cadastrados no Banco</span>
+                <span>Insumos da Obra: <strong className="text-indigo-900">{activeObra ? activeObra.nome : 'Nenhuma Obra Selecionada'}</strong></span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Gerencie todos os materiais, mão de obra, equipamentos e serviços terceirizados cadastrados.
+                Exibindo exclusivamente os insumos cadastrados e isolados para este projeto.
               </p>
             </div>
 

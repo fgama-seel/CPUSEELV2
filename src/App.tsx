@@ -99,20 +99,27 @@ export default function App() {
       }
     });
 
-    const unsubBanco = subscribeBancoInsumos((list) => {
-      setBancoInsumos(list);
-    });
-
     const unsubPerms = subscribeUserPermissions((list) => {
       setUserPermissions(list);
     });
 
     return () => {
       unsubObras();
-      unsubBanco();
       unsubPerms();
     };
   }, []);
+
+  // Real-time Subscription to Banco de Insumos for active Obra
+  useEffect(() => {
+    if (!activeObraId) {
+      setBancoInsumos([]);
+      return;
+    }
+    const unsubBanco = subscribeBancoInsumos(activeObraId, (list) => {
+      setBancoInsumos(list);
+    });
+    return () => unsubBanco();
+  }, [activeObraId]);
 
   // Real-time Subscription to CPUs for active Obra
   useEffect(() => {
@@ -431,7 +438,12 @@ export default function App() {
         bancoInsumos={bancoInsumos}
         onClose={() => setIsModalInsumoOpen(false)}
         onAddInsumoToCpu={handleAddInsumoToActiveCpu}
-        onCadastrarNovoInsumo={createInsumoBase}
+        onCadastrarNovoInsumo={(novoBase) =>
+          createInsumoBase({
+            ...novoBase,
+            obraId: activeObra?.id || 'obra-966'
+          })
+        }
         onOpenImportModal={() => setIsModalImportarInsumosOpen(true)}
       />
 

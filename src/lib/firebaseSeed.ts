@@ -83,6 +83,7 @@ export async function seedInitialDataIfNeeded() {
       {
         id: 'INS_E1',
         id_insumo: 'E1',
+        obraId: 'obra-966',
         tipo: 'Equipamento',
         descricao: 'Caminhão Munck 12t',
         unid: 'h',
@@ -91,6 +92,7 @@ export async function seedInitialDataIfNeeded() {
       {
         id: 'INS_M1',
         id_insumo: 'M1',
+        obraId: 'obra-966',
         tipo: 'Mão de Obra',
         descricao: 'Pedreiro de Obra',
         unid: 'h',
@@ -99,6 +101,7 @@ export async function seedInitialDataIfNeeded() {
       {
         id: 'INS_M2',
         id_insumo: 'M2',
+        obraId: 'obra-966',
         tipo: 'Mão de Obra',
         descricao: 'Ajudante de Prático',
         unid: 'h',
@@ -107,6 +110,7 @@ export async function seedInitialDataIfNeeded() {
       {
         id: 'INS_MAT1',
         id_insumo: 'MAT1',
+        obraId: 'obra-966',
         tipo: 'Material',
         descricao: 'Cimento Portland CP-II (saco 50kg)',
         unid: 'sc',
@@ -115,6 +119,7 @@ export async function seedInitialDataIfNeeded() {
       {
         id: 'INS_E2',
         id_insumo: 'E2',
+        obraId: 'obra-966',
         tipo: 'Equipamento',
         descricao: 'Escavadeira Hidráulica 20t',
         unid: 'h',
@@ -123,6 +128,7 @@ export async function seedInitialDataIfNeeded() {
       {
         id: 'INS_MAT2',
         id_insumo: 'MAT2',
+        obraId: 'obra-966',
         tipo: 'Material',
         descricao: 'Aço CA-50 D=10.0mm',
         unid: 'kg',
