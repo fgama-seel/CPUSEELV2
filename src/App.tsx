@@ -147,9 +147,11 @@ export default function App() {
 
   // Filter allowed Obras for current user
   const allowedObras = obras.filter((o) => {
-    if (isSuperAdmin || currentUserPerm?.obrasPermitidas?.includes('*')) return true;
-    if (o.emailsAcesso && o.emailsAcesso.some((e) => e.toLowerCase() === normalizedEmail)) return true;
-    return currentUserPerm?.obrasPermitidas?.includes(o.id);
+    if (isSuperAdmin) return true;
+    if (!currentUserPerm || currentUserPerm.status !== 'APPROVED') return false;
+    if (currentUserPerm.obrasPermitidas?.includes('*')) return true;
+    if (currentUserPerm.obrasPermitidas?.includes(o.id)) return true;
+    return false;
   });
 
   // Keep activeObraId synced with allowedObras list
@@ -311,6 +313,7 @@ export default function App() {
               activeTab={activeTab}
               userEmail={userEmail}
               isAdmin={isAdmin}
+              isSuperAdmin={isSuperAdmin}
               isOpenMobile={isOpenMobileSidebar}
               onSelectObra={handleSelectObra}
               onSelectCpu={handleSelectCpu}
@@ -384,7 +387,7 @@ export default function App() {
                     />
                   )}
 
-                  {activeTab === 'acessos' && isAdmin && (
+                  {activeTab === 'acessos' && isSuperAdmin && (
                     <AbaGestaoAcessos
                       userPermissions={userPermissions}
                       obras={obras}

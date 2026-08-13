@@ -23,6 +23,7 @@ interface SidebarProps {
   activeTab: 'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'dashboard';
   userEmail: string;
   isAdmin: boolean;
+  isSuperAdmin?: boolean;
   isOpenMobile: boolean;
   onSelectObra: (obraId: string) => void;
   onSelectCpu: (cpuId: string) => void;
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   userEmail,
   isAdmin,
+  isSuperAdmin,
   isOpenMobile,
   onSelectObra,
   onSelectCpu,
@@ -220,7 +222,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>Insumos Cadastrados</span>
         </button>
 
-        {isAdmin && (
+        {isSuperAdmin && (
           <button
             onClick={() => {
               onSelectTab('acessos');
