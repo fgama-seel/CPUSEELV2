@@ -18,7 +18,11 @@ import {
   Download,
   PlusCircle,
   Upload,
-  ArrowRight
+  Settings,
+  ShieldCheck,
+  Receipt,
+  Percent,
+  Sliders
 } from 'lucide-react';
 
 interface ModalGuiaUsuarioProps {
@@ -107,6 +111,12 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
       title: 'Visão Geral & Navegação',
       icon: Building,
       desc: 'Como selecionar obras e navegar pelo sistema'
+    },
+    {
+      id: 'config_orcamento',
+      title: 'Configuração do Orçamento',
+      icon: Settings,
+      desc: 'Detalhamento dos campos, alíquotas de impostos e metas'
     },
     {
       id: 'resumo',
@@ -282,6 +292,136 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
                     <p className="text-xs text-slate-600 leading-relaxed">
                       Cada obra possui seu próprio orçamento e seu próprio banco de insumos. Nenhuma alteração feita na Obra 966 afeta os valores ou insumos de outros projetos.
                     </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CONFIGURAÇÃO DO ORÇAMENTO */}
+            {activeMenu === 'config_orcamento' && (
+              <div className="space-y-6">
+                <div className="border-b border-slate-100 pb-4">
+                  <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
+                    Parâmetros do Projeto & Impostos
+                  </span>
+                  <h4 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                    <Settings className="w-6 h-6 text-slate-800" />
+                    <span>Configuração do Orçamento (Detalhamento dos Campos)</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Acesse esta janela através do ícone de engrenagem no cabeçalho ou menu para configurar parâmetros financeiros, impostos e metas orçamentárias de cada obra.
+                  </p>
+                </div>
+
+                <div className="space-y-5">
+                  {/* Bloco 1 */}
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="font-bold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-slate-700" />
+                      <span>1. Identificação & Permissões do Projeto</span>
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600">
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Nome da Obra</strong>
+                        Nome descritivo e código do contrato (ex: Obra 966 - Reforço de Fundação).
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Cliente</strong>
+                        Empresa contratante responsável pelo projeto (ex: SEEL Engenharia).
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200 md:col-span-2">
+                        <strong className="text-slate-800 block mb-0.5">E-mails com Acesso à Obra</strong>
+                        Lista de e-mails dos engenheiros e orçamentistas autorizados a visualizar e modificar esta obra.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bloco 2 */}
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="font-bold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-blue-600" />
+                      <span>2. Parâmetros Financeiros Atuais da Obra</span>
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-600">
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Faturamento Direto Atual (R$)</strong>
+                        Valor faturado diretamente por fornecedores ou parceiros, sem incidência na receita e impostos diretos da SEEL.
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Custo Indireto Atual (R$)</strong>
+                        Custos com equipe administrativa, canteiro de obras, supervisão e apoios indiretos da obra.
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">BDI Padrão (%)</strong>
+                        Percentual de Benefício e Despesas Indiretas (BDI) aplicado por padrão nas composições do projeto (ex: 25,00%).
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bloco 3 */}
+                  <div className="p-4 bg-red-50/60 rounded-xl border border-red-200 space-y-3">
+                    <h5 className="font-bold text-xs text-red-950 uppercase tracking-wider flex items-center gap-2">
+                      <Receipt className="w-4 h-4 text-red-600" />
+                      <span>3. Alíquotas de Impostos do Projeto (Recálculo Dinâmico Atual)</span>
+                    </h5>
+                    <p className="text-xs text-red-800 leading-relaxed">
+                      Defina os percentuais de impostos incidentes sobre a Venda sem Faturamento para este contrato especificamente:
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-700">
+                      <div className="bg-white p-3 rounded-lg border border-red-200 shadow-2xs">
+                        <strong className="text-red-900 block mb-0.5">Alíquota PIS Atual (%)</strong>
+                        Percentual de PIS para o projeto (padrão 3,00%).
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-red-200 shadow-2xs">
+                        <strong className="text-red-900 block mb-0.5">Alíquota COFINS Atual (%)</strong>
+                        Percentual de COFINS para o projeto (padrão 0,65%).
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-red-200 shadow-2xs">
+                        <strong className="text-red-900 block mb-0.5">Alíquota ISS Atual (%)</strong>
+                        Percentual de ISS específico do município da obra (padrão 3,00%).
+                      </div>
+                    </div>
+                    <div className="p-3 bg-white rounded-lg border border-red-200 text-xs text-red-900 flex items-start gap-2">
+                      <RefreshCw className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>Recálculo Automático da Receita Líquida:</strong> Sempre que novas CPUs forem adicionadas, alteradas ou tiverem suas quantidades ajustadas, o sistema reaplica automaticamente essas alíquotas para recalcular a <strong>Receita Líquida Atual</strong>, o <strong>Resultado Operacional (R$)</strong> e a <strong>Margem Operacional (%)</strong> da obra em tempo real!
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bloco 4 */}
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="font-bold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-amber-600" />
+                      <span>4. Informações do Orçamento Original (Base de Comparação)</span>
+                    </h5>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Campos de referência histórica para comparar o desempenho atual contra o planejado na proposta comercial:
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600">
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Venda Total Orçada (R$) & Fat. Direto Orçado (R$)</strong>
+                        Valor total de venda e faturamento direto contratado originalmente.
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Custos Orçados (Direto e Indireto em R$)</strong>
+                        Custos diretos e indiretos previstos na fase de licitação/proposta.
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Impostos Orçados (PIS, COFINS e ISS)</strong>
+                        Valores em Reais (R$) e percentuais (%) de impostos orçados prefixados.
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Receita Líquida, Resultado e Margem Orçados</strong>
+                        Metas financeiras e de rentabilidade pré-fixadas do orçamento base.
+                      </div>
+                    </div>
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>
+                        Use o botão <strong>"Recalcular Derivados Orçados"</strong> na janela de configurações para atualizar automaticamente todos os impostos, receita líquida e resultado orçados com base nos valores principais inseridos.
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
