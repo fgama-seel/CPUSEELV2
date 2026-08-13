@@ -326,6 +326,16 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
 
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Configuração de Impostos (PIS, COFINS e ISS) e Receita Líquida</span>
+                    </h5>
+                    <p className="text-xs text-slate-600">
+                      Pelo botão de configurações da obra (ícone de engrenagem), você pode definir os valores orçados e as <strong>alíquotas de impostos atuais</strong> (PIS, COFINS e ISS). Ao cadastrar ou alterar CPUs, o sistema recalcula automaticamente a Receita Líquida, o Resultado Operacional e a Margem do projeto em tempo real.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
                       <FileSpreadsheet className="w-4 h-4 text-blue-600" />
                       <span>Exportação de Relatórios em Excel</span>
                     </h5>

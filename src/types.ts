@@ -56,6 +56,9 @@ export interface OrcamentoOriginal {
   pis: number;
   cofins: number;
   iss: number;
+  pisPerc?: number;
+  cofinsPerc?: number;
+  issPerc?: number;
   vendaLiquida: number;
   resultado: number;
   margem: number;
@@ -69,6 +72,11 @@ export interface Obra {
   bdi?: number; // Percentual de BDI (%) ex: 25.0
   custoIndiretoAtual: number;
   faturamentoDiretoAtual: number;
+  aliquotasImpostos?: {
+    pisPerc: number;
+    cofinsPerc: number;
+    issPerc: number;
+  };
   orcamentoOriginal: OrcamentoOriginal;
   emailsAcesso?: string[];
   createdAt?: string;

@@ -93,10 +93,14 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({ activeObra, cpus, onRefres
   const custoIndireto = editingIndireto ? indiretoValue : (activeObra.custoIndiretoAtual || 0);
   const custoTotal = custoDiretoCalculado + custoIndireto;
 
-  // Taxes calculation on Venda Sem Faturamento
-  const pis = vendaSemFat * 0.03; // 3%
-  const cofins = vendaSemFat * 0.0065; // 0.65%
-  const iss = vendaSemFat * 0.03; // 3%
+  // Taxes calculation on Venda Sem Faturamento using active Obra tax aliquots
+  const pisPerc = activeObra.aliquotasImpostos?.pisPerc ?? 3.0;
+  const cofinsPerc = activeObra.aliquotasImpostos?.cofinsPerc ?? 0.65;
+  const issPerc = activeObra.aliquotasImpostos?.issPerc ?? 3.0;
+
+  const pis = vendaSemFat * (pisPerc / 100);
+  const cofins = vendaSemFat * (cofinsPerc / 100);
+  const iss = vendaSemFat * (issPerc / 100);
   const totalImpostos = pis + cofins + iss;
 
   const vendaLiquida = vendaSemFat - totalImpostos;
@@ -371,7 +375,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({ activeObra, cpus, onRefres
 
             {/* PIS */}
             <div className="flex justify-between items-start mb-2.5 border-b border-slate-100 pb-2">
-              <span className="text-slate-600 font-medium text-xs">PIS (3%)</span>
+              <span className="text-slate-600 font-medium text-xs">PIS ({pisPerc}%)</span>
               <div className="text-right">
                 <div className="font-bold text-slate-800 text-xs leading-none">
                   {formatMoney(pis)}
@@ -384,7 +388,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({ activeObra, cpus, onRefres
 
             {/* COFINS */}
             <div className="flex justify-between items-start mb-2.5 border-b border-slate-100 pb-2">
-              <span className="text-slate-600 font-medium text-xs">COFINS (0.65%)</span>
+              <span className="text-slate-600 font-medium text-xs">COFINS ({cofinsPerc}%)</span>
               <div className="text-right">
                 <div className="font-bold text-slate-800 text-xs leading-none">
                   {formatMoney(cofins)}
@@ -397,7 +401,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({ activeObra, cpus, onRefres
 
             {/* ISS */}
             <div className="flex justify-between items-start mb-2.5 border-b border-slate-100 pb-2">
-              <span className="text-slate-600 font-medium text-xs">ISS (3%)</span>
+              <span className="text-slate-600 font-medium text-xs">ISS ({issPerc}%)</span>
               <div className="text-right">
                 <div className="font-bold text-slate-800 text-xs leading-none">
                   {formatMoney(iss)}

@@ -45,6 +45,11 @@ export const ModalNovaObra: React.FC<ModalNovaObraProps> = ({
       cliente: cliente.trim() || 'SEEL Engenharia',
       custoIndiretoAtual: orcCustoIndireto,
       faturamentoDiretoAtual: 0,
+      aliquotasImpostos: {
+        pisPerc: 3.0,
+        cofinsPerc: 0.65,
+        issPerc: 3.0
+      },
       orcamentoOriginal: {
         vendaTotal: orcVenda,
         fatDireto: 0,
@@ -55,6 +60,9 @@ export const ModalNovaObra: React.FC<ModalNovaObraProps> = ({
         pis,
         cofins,
         iss,
+        pisPerc: 3.0,
+        cofinsPerc: 0.65,
+        issPerc: 3.0,
         vendaLiquida,
         resultado,
         margem

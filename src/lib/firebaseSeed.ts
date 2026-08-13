@@ -33,6 +33,11 @@ export async function seedInitialDataIfNeeded() {
       cliente: 'SEEL Engenharia',
       custoIndiretoAtual: 1000000.0,
       faturamentoDiretoAtual: 5000000.0,
+      aliquotasImpostos: {
+        pisPerc: 3.0,
+        cofinsPerc: 0.65,
+        issPerc: 3.0
+      },
       orcamentoOriginal: {
         vendaTotal: 50400000.0,
         fatDireto: 2449175.32,
@@ -43,6 +48,9 @@ export async function seedInitialDataIfNeeded() {
         pis: 1438524.74,
         cofins: 311680.36,
         iss: 1438524.74,
+        pisPerc: 3.0,
+        cofinsPerc: 0.65,
+        issPerc: 3.0,
         vendaLiquida: 44762094.84,
         resultado: 9790581.84,
         margem: 21.87

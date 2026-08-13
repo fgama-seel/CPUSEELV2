@@ -25,6 +25,11 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
   const [custoIndiretoAtual, setCustoIndiretoAtual] = useState<number>(0);
   const [bdiPadrao, setBdiPadrao] = useState<number>(25);
 
+  // Alíquotas Atuais (para recálculo dinâmico)
+  const [pisPercAtual, setPisPercAtual] = useState<number>(3.0);
+  const [cofinsPercAtual, setCofinsPercAtual] = useState<number>(0.65);
+  const [issPercAtual, setIssPercAtual] = useState<number>(3.0);
+
   // Orçado Original fields
   const [vendaTotal, setVendaTotal] = useState<number>(0);
   const [fatDireto, setFatDireto] = useState<number>(0);
@@ -34,6 +39,9 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
   const [pis, setPis] = useState<number>(0);
   const [cofins, setCofins] = useState<number>(0);
   const [iss, setIss] = useState<number>(0);
+  const [pisPercOrcado, setPisPercOrcado] = useState<number>(3.0);
+  const [cofinsPercOrcado, setCofinsPercOrcado] = useState<number>(0.65);
+  const [issPercOrcado, setIssPercOrcado] = useState<number>(3.0);
   const [vendaLiquida, setVendaLiquida] = useState<number>(0);
   const [resultado, setResultado] = useState<number>(0);
   const [margem, setMargem] = useState<number>(0);
@@ -49,6 +57,10 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
       setCustoIndiretoAtual(obra.custoIndiretoAtual || 0);
       setBdiPadrao(obra.bdi ?? 25);
 
+      setPisPercAtual(obra.aliquotasImpostos?.pisPerc ?? 3.0);
+      setCofinsPercAtual(obra.aliquotasImpostos?.cofinsPerc ?? 0.65);
+      setIssPercAtual(obra.aliquotasImpostos?.issPerc ?? 3.0);
+
       const orig = obra.orcamentoOriginal || {
         vendaTotal: 50400000.0,
         fatDireto: 2449175.32,
@@ -59,6 +71,9 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
         pis: 1438524.74,
         cofins: 311680.36,
         iss: 1438524.74,
+        pisPerc: 3.0,
+        cofinsPerc: 0.65,
+        issPerc: 3.0,
         vendaLiquida: 44762094.84,
         resultado: 9790581.84,
         margem: 21.87,
@@ -72,6 +87,9 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
       setPis(orig.pis);
       setCofins(orig.cofins);
       setIss(orig.iss);
+      setPisPercOrcado(orig.pisPerc ?? 3.0);
+      setCofinsPercOrcado(orig.cofinsPerc ?? 0.65);
+      setIssPercOrcado(orig.issPerc ?? 3.0);
       setVendaLiquida(orig.vendaLiquida);
       setResultado(orig.resultado);
       setMargem(orig.margem);
@@ -96,9 +114,9 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
     const calcVendaSemFat = Math.max(0, vendaTotal - fatDireto);
     setVendaSemFat(calcVendaSemFat);
 
-    const calcPis = calcVendaSemFat * 0.03;
-    const calcCofins = calcVendaSemFat * 0.0065;
-    const calcIss = calcVendaSemFat * 0.03;
+    const calcPis = calcVendaSemFat * ((Number(pisPercOrcado) || 0) / 100);
+    const calcCofins = calcVendaSemFat * ((Number(cofinsPercOrcado) || 0) / 100);
+    const calcIss = calcVendaSemFat * ((Number(issPercOrcado) || 0) / 100);
     setPis(calcPis);
     setCofins(calcCofins);
     setIss(calcIss);
@@ -131,6 +149,9 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
       pis: Number(pis) || 0,
       cofins: Number(cofins) || 0,
       iss: Number(iss) || 0,
+      pisPerc: Number(pisPercOrcado) || 0,
+      cofinsPerc: Number(cofinsPercOrcado) || 0,
+      issPerc: Number(issPercOrcado) || 0,
       vendaLiquida: Number(vendaLiquida) || 0,
       resultado: Number(resultado) || 0,
       margem: Number(margem) || 0,
@@ -144,6 +165,11 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
       emailsAcesso: emailsAcesso,
       faturamentoDiretoAtual: Number(fatDiretoAtual) || 0,
       custoIndiretoAtual: Number(custoIndiretoAtual) || 0,
+      aliquotasImpostos: {
+        pisPerc: Number(pisPercAtual) || 0,
+        cofinsPerc: Number(cofinsPercAtual) || 0,
+        issPerc: Number(issPercAtual) || 0,
+      },
       orcamentoOriginal: updatedOrcamento,
     };
 
@@ -366,22 +392,96 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
             </div>
           </div>
 
-          {/* Seção 3: Metas do Orçamento Original */}
+          {/* Seção 3: Configuração de Impostos do Projeto (PIS, COFINS, ISS Atuais) */}
+          <div className="bg-red-50/50 p-4 rounded-xl border border-red-200 space-y-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="text-xs font-bold text-red-900 uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-600"></span>
+                  3. Alíquotas de Impostos do Projeto (Recálculo Dinâmico Atual)
+                </h4>
+                <p className="text-[11px] text-red-700 mt-0.5">
+                  Estes percentuais são aplicados sobre a Venda sem Faturamento para calcular automaticamente a Receita Líquida, Resultado Operacional e Margem Atual conforme novas CPUs forem adicionadas ou alteradas.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-3 rounded-lg border border-red-100 shadow-sm">
+                <label className="block text-xs font-bold text-red-900 mb-1">
+                  Alíquota PIS Atual (%)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={pisPercAtual}
+                    onChange={(e) => setPisPercAtual(Number(e.target.value))}
+                    className="w-full bg-white border border-red-300 rounded-lg px-3 py-1.5 text-sm font-bold font-mono text-slate-800 focus:outline-none focus:border-red-500"
+                  />
+                  <span className="absolute right-3 top-2 text-xs font-bold text-red-400">%</span>
+                </div>
+                <span className="text-[10px] text-slate-500 mt-1 block">Padrão: 3.00%</span>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-red-100 shadow-sm">
+                <label className="block text-xs font-bold text-red-900 mb-1">
+                  Alíquota COFINS Atual (%)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={cofinsPercAtual}
+                    onChange={(e) => setCofinsPercAtual(Number(e.target.value))}
+                    className="w-full bg-white border border-red-300 rounded-lg px-3 py-1.5 text-sm font-bold font-mono text-slate-800 focus:outline-none focus:border-red-500"
+                  />
+                  <span className="absolute right-3 top-2 text-xs font-bold text-red-400">%</span>
+                </div>
+                <span className="text-[10px] text-slate-500 mt-1 block">Padrão: 0.65%</span>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-red-100 shadow-sm">
+                <label className="block text-xs font-bold text-red-900 mb-1">
+                  Alíquota ISS Atual (%)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={issPercAtual}
+                    onChange={(e) => setIssPercAtual(Number(e.target.value))}
+                    className="w-full bg-white border border-red-300 rounded-lg px-3 py-1.5 text-sm font-bold font-mono text-slate-800 focus:outline-none focus:border-red-500"
+                  />
+                  <span className="absolute right-3 top-2 text-xs font-bold text-red-400">%</span>
+                </div>
+                <span className="text-[10px] text-slate-500 mt-1 block">Padrão: 3.00%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Seção 4: Metas do Orçamento Original */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                3. Informações do Orçamento Original (Base de Comparação)
+                4. Informações do Orçamento Original (Base de Comparação)
               </h4>
 
               <button
                 type="button"
                 onClick={handleAutoCalculate}
                 className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded border border-blue-200 flex items-center gap-1 transition"
-                title="Recalcular impostos, venda líquida e resultado orçado automaticamente com base nos valores base"
+                title="Recalcular impostos, receita líquida e resultado orçado automaticamente"
               >
                 <Calculator className="w-3.5 h-3.5" />
-                <span>Recalcular Derivados</span>
+                <span>Recalcular Derivados Orçados</span>
               </button>
             </div>
 
@@ -464,58 +564,80 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
               </div>
             </div>
 
-            {/* Impostos e Resultado */}
-            <div className="pt-2 border-t border-slate-200">
-              <label className="block text-xs font-bold text-slate-700 mb-2">
-                Detalhamento de Impostos e DRE Orçado
+            {/* Impostos Orçados e Resultado */}
+            <div className="pt-3 border-t border-slate-200 space-y-3">
+              <label className="block text-xs font-bold text-slate-700">
+                Impostos Orçados (Prefixados ou Calculados) e Receita Líquida Orçada
               </label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-100/70 p-3 rounded-lg border border-slate-200">
                 <div>
-                  <span className="text-[11px] text-slate-500 block mb-0.5">PIS Orçado (3%)</span>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[11px] font-bold text-slate-700">PIS Orçado (R$)</span>
+                    <span className="text-[10px] text-slate-400">
+                      %: <input type="number" step="0.01" value={pisPercOrcado} onChange={(e) => setPisPercOrcado(Number(e.target.value))} className="w-12 text-right border rounded bg-white px-1 text-[10px]" />%
+                    </span>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
                     value={pis}
                     onChange={(e) => setPis(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono"
+                    className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono font-semibold"
                   />
                 </div>
 
                 <div>
-                  <span className="text-[11px] text-slate-500 block mb-0.5">COFINS Orçado (0.65%)</span>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[11px] font-bold text-slate-700">COFINS Orçado (R$)</span>
+                    <span className="text-[10px] text-slate-400">
+                      %: <input type="number" step="0.01" value={cofinsPercOrcado} onChange={(e) => setCofinsPercOrcado(Number(e.target.value))} className="w-12 text-right border rounded bg-white px-1 text-[10px]" />%
+                    </span>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
                     value={cofins}
                     onChange={(e) => setCofins(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono"
+                    className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono font-semibold"
                   />
                 </div>
 
                 <div>
-                  <span className="text-[11px] text-slate-500 block mb-0.5">ISS Orçado (3%)</span>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[11px] font-bold text-slate-700">ISS Orçado (R$)</span>
+                    <span className="text-[10px] text-slate-400">
+                      %: <input type="number" step="0.01" value={issPercOrcado} onChange={(e) => setIssPercOrcado(Number(e.target.value))} className="w-12 text-right border rounded bg-white px-1 text-[10px]" />%
+                    </span>
+                  </div>
                   <input
                     type="number"
                     step="0.01"
                     value={iss}
                     onChange={(e) => setIss(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono"
+                    className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono font-semibold"
                   />
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
                 <div>
-                  <span className="text-[11px] text-slate-500 block mb-0.5">Venda Líquida Orçada (R$)</span>
+                  <span className="text-[11px] text-slate-600 block mb-0.5 font-bold">
+                    Venda Líquida Orçada (Receita Liquida)
+                  </span>
                   <input
                     type="number"
                     step="0.01"
                     value={vendaLiquida}
                     onChange={(e) => setVendaLiquida(Number(e.target.value))}
-                    className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono"
+                    className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono font-bold text-blue-900"
                   />
                 </div>
 
                 <div>
-                  <span className="text-[11px] text-slate-500 block mb-0.5">Resultado Operacional Orçado (R$)</span>
+                  <span className="text-[11px] text-slate-600 block mb-0.5 font-bold">
+                    Resultado Operacional Orçado (R$)
+                  </span>
                   <input
                     type="number"
                     step="0.01"
@@ -526,7 +648,9 @@ export const ModalConfigOrcamento: React.FC<ModalConfigOrcamentoProps> = ({
                 </div>
 
                 <div>
-                  <span className="text-[11px] text-slate-500 block mb-0.5">Margem Operacional Orçada (%)</span>
+                  <span className="text-[11px] text-slate-600 block mb-0.5 font-bold">
+                    Margem Operacional Orçada (%)
+                  </span>
                   <input
                     type="number"
                     step="0.01"
