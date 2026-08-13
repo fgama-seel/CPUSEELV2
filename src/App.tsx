@@ -37,6 +37,7 @@ import { ModalNovaCPU } from './components/ModalNovaCPU';
 import { ModalInsumo } from './components/ModalInsumo';
 import { ModalImportarInsumos } from './components/ModalImportarInsumos';
 import { ModalComposicoes } from './components/ModalComposicoes';
+import { ModalGuiaUsuario } from './components/ModalGuiaUsuario';
 import { LoginScreen } from './components/LoginScreen';
 
 export default function App() {
@@ -69,6 +70,7 @@ export default function App() {
   const [isModalNovaCpuOpen, setIsModalNovaCpuOpen] = useState<boolean>(false);
   const [isModalInsumoOpen, setIsModalInsumoOpen] = useState<boolean>(false);
   const [isModalImportarInsumosOpen, setIsModalImportarInsumosOpen] = useState<boolean>(false);
+  const [isGuiaUsuarioOpen, setIsGuiaUsuarioOpen] = useState<boolean>(false);
 
   // Traceability Modal State
   const [traceabilityInsumo, setTraceabilityInsumo] = useState<{ id: string; nome: string } | null>(null);
@@ -298,6 +300,7 @@ export default function App() {
             pendingChanges={pendingChanges}
             isSaving={isSaving}
             onSavePendingChanges={handleSaveAllPendingCpus}
+            onOpenGuiaUsuario={() => setIsGuiaUsuarioOpen(true)}
             onLogout={handleLogout}
             onToggleSidebarMobile={() => setIsOpenMobileSidebar(!isOpenMobileSidebar)}
           />
@@ -463,6 +466,12 @@ export default function App() {
         cpus={cpus}
         onClose={() => setTraceabilityInsumo(null)}
         onNavigateToCpu={handleSelectCpu}
+      />
+
+      <ModalGuiaUsuario
+        isOpen={isGuiaUsuarioOpen}
+        onClose={() => setIsGuiaUsuarioOpen(false)}
+        isSuperAdmin={isSuperAdmin}
       />
     </div>
   );

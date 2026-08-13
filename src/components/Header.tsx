@@ -1,5 +1,5 @@
 import React from 'react';
-import { HardHat, LogOut, ShieldCheck, Database, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { HardHat, LogOut, ShieldCheck, CheckCircle2, AlertCircle, RefreshCw, BookOpen } from 'lucide-react';
 import { Obra, UserPermission } from '../types';
 import { formatMoney } from '../lib/excelExport';
 
@@ -11,6 +11,7 @@ interface HeaderProps {
   pendingChanges: boolean;
   isSaving: boolean;
   onSavePendingChanges: () => void;
+  onOpenGuiaUsuario?: () => void;
   onLogout: () => void;
   onToggleSidebarMobile: () => void;
 }
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   pendingChanges,
   isSaving,
   onSavePendingChanges,
+  onOpenGuiaUsuario,
   onLogout,
   onToggleSidebarMobile
 }) => {
@@ -62,6 +64,18 @@ export const Header: React.FC<HeaderProps> = ({
               {formatMoney(totalCustoObra)}
             </div>
           </div>
+        )}
+
+        {/* Guia do Usuário Button */}
+        {onOpenGuiaUsuario && (
+          <button
+            onClick={onOpenGuiaUsuario}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3.5 py-2 rounded text-xs font-bold shadow-xs transition flex items-center gap-1.5 shrink-0"
+            title="Abrir Guia e Manual do Usuário"
+          >
+            <BookOpen className="w-4 h-4 text-slate-950" />
+            <span className="hidden sm:inline">Guia do Usuário</span>
+          </button>
         )}
 
         {/* Sync / Firebase Persistence Status Indicator */}
