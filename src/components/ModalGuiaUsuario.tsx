@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
   BookOpen,
   X,
@@ -7,15 +8,17 @@ import {
   Boxes,
   BarChart3,
   PieChart,
-  Users,
   CheckCircle2,
   Search,
   FileSpreadsheet,
   ChevronRight,
-  ShieldCheck,
   RefreshCw,
   HardHat,
-  Info
+  Info,
+  Download,
+  PlusCircle,
+  Upload,
+  ArrowRight
 } from 'lucide-react';
 
 interface ModalGuiaUsuarioProps {
@@ -26,12 +29,77 @@ interface ModalGuiaUsuarioProps {
 
 export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
   isOpen,
-  onClose,
-  isSuperAdmin = false
+  onClose
 }) => {
   const [activeMenu, setActiveMenu] = useState<string>('geral');
 
   if (!isOpen) return null;
+
+  const baixarModeloInsumos = () => {
+    const dados = [
+      {
+        'ID Insumo': 'MAT-001',
+        Tipo: 'Material',
+        Descrição: 'Cimento Portland CP-II (saco 50kg)',
+        Unidade: 'sc',
+        'Preço Unitário (R$)': 42.50
+      },
+      {
+        'ID Insumo': 'MO-001',
+        Tipo: 'Mão de Obra',
+        Descrição: 'Pedreiro de Obra',
+        Unidade: 'h',
+        'Preço Unitário (R$)': 28.00
+      },
+      {
+        'ID Insumo': 'EQP-001',
+        Tipo: 'Equipamento',
+        Descrição: 'Caminhão Munck 12t',
+        Unidade: 'h',
+        'Preço Unitário (R$)': 180.00
+      },
+      {
+        'ID Insumo': 'TERC-001',
+        Tipo: 'Terceirizado',
+        Descrição: 'Ensaio de Carga Dinâmica em Estaca',
+        Unidade: 'un',
+        'Preço Unitário (R$)': 3500.00
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo Insumos');
+    XLSX.writeFile(wb, 'Modelo_Importacao_Insumos_SEEL.xlsx');
+  };
+
+  const baixarModeloCPUs = () => {
+    const dados = [
+      {
+        'ID CPU': 'CPU-01',
+        'Nome CPU': 'Perfuração em rocha D=75mm',
+        'Unid. CPU': 'm',
+        'Tipo Serviço': 'Sondagens',
+        'Produtividade Teórica/Dia': 25,
+        'Fator Praticabilidade': 0.85,
+        'Horas/Dia': 8.8,
+        'Quantidade Prevista': 1500
+      },
+      {
+        'ID CPU': 'CPU-02',
+        'Nome CPU': 'Injeção de calda de cimento',
+        'Unid. CPU': 'sc',
+        'Tipo Serviço': 'Injeções',
+        'Produtividade Teórica/Dia': 80,
+        'Fator Praticabilidade': 0.90,
+        'Horas/Dia': 8.8,
+        'Quantidade Prevista': 3000
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo CPUs');
+    XLSX.writeFile(wb, 'Modelo_Importacao_CPUs_SEEL.xlsx');
+  };
 
   const menus = [
     {
@@ -48,9 +116,9 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
     },
     {
       id: 'cpus',
-      title: 'Tabela de CPUs',
+      title: 'Tabela de CPUs (Como Criar & Importar)',
       icon: Calculator,
-      desc: 'Listagem, criação e filtragem de composições'
+      desc: 'Criação manual e modelo Excel de composições'
     },
     {
       id: 'dashboard',
@@ -66,25 +134,15 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
     },
     {
       id: 'insumos',
-      title: 'Banco de Insumos da Obra',
+      title: 'Banco de Insumos (Upload Excel)',
       icon: Boxes,
-      desc: 'Gestão de preços e importação por projeto'
-    },
-    ...(isSuperAdmin
-      ? [
-          {
-            id: 'acessos',
-            title: 'Gestão de Acessos (Super Admin)',
-            icon: Users,
-            desc: 'Liberação de obras e permissões por usuário'
-          }
-        ]
-      : [])
+      desc: 'Cadastro, upload Excel e modelo de planilha'
+    }
   ];
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 md:p-6 animate-fadeIn">
-      <div className="bg-white w-full max-w-5xl h-[85vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+      <div className="bg-white w-full max-w-5xl h-[88vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
         {/* Modal Header */}
         <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
@@ -95,11 +153,11 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
               <h3 className="text-base font-extrabold text-white flex items-center gap-2">
                 <span>Guia de Utilização do Sistema — SEEL Engenharia</span>
                 <span className="bg-amber-500/20 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-500/30">
-                  Manual Prático
+                  Manual Operacional
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                Aprenda a utilizar cada recurso e funcionalidade do aplicativo de forma simples e intuitiva.
+                Aprenda a utilizar cada recurso do sistema com instruções passo a passo e modelos de planilhas.
               </p>
             </div>
           </div>
@@ -118,7 +176,7 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
           {/* Left Menu Sidebar */}
           <div className="w-full md:w-72 bg-white border-r border-slate-200 p-3 flex flex-col gap-1 overflow-y-auto shrink-0 border-b md:border-b-0">
             <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-3 py-1.5">
-              Tópicos de Ajuda
+              Menu de Instruções
             </div>
 
             {menus.map((m) => {
@@ -161,6 +219,7 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
 
           {/* Right Main Help Body */}
           <div className="flex-1 p-6 overflow-y-auto bg-white space-y-6">
+            {/* 1. VISÃO GERAL */}
             {activeMenu === 'geral' && (
               <div className="space-y-6">
                 <div className="border-b border-slate-100 pb-4">
@@ -172,7 +231,7 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
                     <span>Visão Geral & Seleção de Obras</span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-1">
-                    Como funciona a estrutura de obras e a navegação principal da ferramenta.
+                    Entenda como funciona a estrutura de obras e a navegação principal da ferramenta.
                   </p>
                 </div>
 
@@ -209,7 +268,7 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
                       <span>Salvar no Firestore (Sincronização)</span>
                     </div>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      Quando você realiza alterações em composições ou preços de insumos, o botão <strong>"Salvar no Firestore"</strong> na barra superior piscará indicando pendências. Clique nele a qualquer momento para garantir a gravação na nuvem.
+                      Quando você realiza alterações em composições ou preços de insumos, o botão <strong>"Salvar no Firestore"</strong> na barra superior piscará indicando pendências. Clique nele a qualquer momento para aplicar na nuvem.
                     </p>
                   </div>
 
@@ -228,6 +287,7 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
               </div>
             )}
 
+            {/* 2. RESUMO DA OBRA */}
             {activeMenu === 'resumo' && (
               <div className="space-y-6">
                 <div className="border-b border-slate-100 pb-4">
@@ -277,57 +337,134 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
               </div>
             )}
 
+            {/* 3. TABELA DE CPUS & MODELO EXCEL */}
             {activeMenu === 'cpus' && (
               <div className="space-y-6">
-                <div className="border-b border-slate-100 pb-4">
-                  <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
-                    Composições
-                  </span>
-                  <h4 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                    <Calculator className="w-6 h-6 text-slate-800" />
-                    <span>Aba Tabela de CPUs</span>
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Visão geral de todos os serviços e preços unitários da obra.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                    <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                      <Search className="w-4 h-4 text-amber-600" />
-                      <span>Busca e Filtros Rápidos</span>
-                    </h5>
-                    <p className="text-xs text-slate-600">
-                      Digite qualquer palavra ou código no campo de busca para filtrar instantaneamente as CPUs. Você também pode filtrar por tipo de serviço (Sondagens, Injeções, Tirantes, Solo Grampeado, etc.).
+                <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
+                      Composições de Preço Unitário
+                    </span>
+                    <h4 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                      <Calculator className="w-6 h-6 text-slate-800" />
+                      <span>Como Criar e Gerenciar CPUs</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Instruções detalhadas para criação manual de serviços e modelo de planilha de importação.
                     </p>
                   </div>
 
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <button
+                    onClick={baixarModeloCPUs}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-extrabold shadow-sm transition flex items-center gap-2 shrink-0 self-start sm:self-auto"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Baixar Modelo Planilha CPUs (.xlsx)</span>
+                  </button>
+                </div>
+
+                {/* Passo a Passo: Criar CPU Manualmente */}
+                <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-xl space-y-3">
+                  <h5 className="font-extrabold text-xs text-amber-950 flex items-center gap-2">
+                    <PlusCircle className="w-4 h-4 text-amber-600" />
+                    <span>Passo a Passo: Como Criar uma Nova CPU Manualmente</span>
+                  </h5>
+                  <ol className="text-xs text-slate-700 space-y-2 list-decimal list-inside leading-relaxed">
+                    <li>
+                      Acesse a aba <strong>Tabela de CPUs</strong> no menu lateral esquerdo.
+                    </li>
+                    <li>
+                      Clique no botão verde <strong>"+ Nova CPU"</strong> localizado no canto superior direito.
+                    </li>
+                    <li>
+                      No formulário que abrir, preencha os dados básicos do serviço:
+                      <ul className="list-disc list-inside pl-4 mt-1 text-slate-600 space-y-1">
+                        <li><strong>Código da CPU</strong>: Ex: <code className="bg-white px-1 rounded border">CPU-001</code></li>
+                        <li><strong>Nome / Descrição do Serviço</strong>: Ex: <code className="bg-white px-1 rounded border">Perfuração em Rocha D=75mm</code></li>
+                        <li><strong>Unidade de Medida</strong>: Ex: <code className="bg-white px-1 rounded border">m</code>, <code className="bg-white px-1 rounded border">m³</code>, <code className="bg-white px-1 rounded border">sc</code>, <code className="bg-white px-1 rounded border">un</code></li>
+                        <li><strong>Tipo de Serviço / Grupo</strong>: Selecione Sondagens, Injeções, Tirantes, etc.</li>
+                        <li><strong>Quantidade Prevista na Obra</strong>: Quantidade total estimada a ser executada.</li>
+                        <li><strong>Produtividade Teórica / Dia</strong> e <strong>Fator de Praticabilidade</strong>: Produtividade calculada da equipe.</li>
+                      </ul>
+                    </li>
+                    <li>
+                      Clique em <strong>"Salvar CPU"</strong>.
+                    </li>
+                    <li>
+                      Na linha da CPU recém-criada, clique em <strong>"Abrir Memória de Cálculo"</strong> para incluir os insumos necessários (materiais, profissionais e equipamentos).
+                    </li>
+                  </ol>
+                </div>
+
+                {/* Modelo de Planilha de CPUs */}
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
                     <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                      <Calculator className="w-4 h-4 text-emerald-600" />
-                      <span>Nova CPU e Edição</span>
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                      <span>Estrutura do Modelo de Planilha de CPUs (Excel / CSV)</span>
                     </h5>
-                    <p className="text-xs text-slate-600">
-                      Clique no botão <strong>"+ Nova CPU"</strong> para cadastrar um novo serviço. Para ver ou alterar a memória de cálculo de uma CPU existente, clique em <strong>"Abrir Memória de Cálculo"</strong> na linha correspondente.
-                    </p>
+                    <button
+                      onClick={baixarModeloCPUs}
+                      className="text-emerald-700 hover:text-emerald-800 text-xs font-bold underline flex items-center gap-1"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Baixar Planilha</span>
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-slate-600">
+                    Se deseja carregar uma lista de CPUs via planilha Excel, organize o arquivo com o cabeçalho idêntico ao modelo abaixo:
+                  </p>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+                    <table className="w-full text-left text-[11px] border-collapse">
+                      <thead className="bg-slate-800 text-white font-mono">
+                        <tr>
+                          <th className="p-2 border-r border-slate-700">ID CPU</th>
+                          <th className="p-2 border-r border-slate-700">Nome CPU</th>
+                          <th className="p-2 border-r border-slate-700">Unid. CPU</th>
+                          <th className="p-2 border-r border-slate-700">Tipo Serviço</th>
+                          <th className="p-2 border-r border-slate-700">Produtividade Teórica/Dia</th>
+                          <th className="p-2">Quantidade Prevista</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 font-medium text-slate-700">
+                        <tr>
+                          <td className="p-2 border-r font-mono font-bold text-indigo-700">CPU-01</td>
+                          <td className="p-2 border-r">Perfuração em rocha D=75mm</td>
+                          <td className="p-2 border-r text-center">m</td>
+                          <td className="p-2 border-r">Sondagens</td>
+                          <td className="p-2 border-r text-right">25.00</td>
+                          <td className="p-2 text-right">1500</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2 border-r font-mono font-bold text-indigo-700">CPU-02</td>
+                          <td className="p-2 border-r">Injeção de calda de cimento</td>
+                          <td className="p-2 border-r text-center">sc</td>
+                          <td className="p-2 border-r">Injeções</td>
+                          <td className="p-2 border-r text-right">80.00</td>
+                          <td className="p-2 text-right">3000</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* 4. MEMÓRIA DE CÁLCULO */}
             {activeMenu === 'dashboard' && (
               <div className="space-y-6">
                 <div className="border-b border-slate-100 pb-4">
                   <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
-                    Memória de Cálculo
+                    Composição Unitária
                   </span>
                   <h4 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
                     <BarChart3 className="w-6 h-6 text-slate-800" />
-                    <span>Dashboard & Memória de Cálculo Unitária</span>
+                    <span>Memória de Cálculo Unitária da CPU</span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-1">
-                    Edição detalhada de produtividade, equipes, equipamentos e lista de insumos de uma composição.
+                    Ajuste fino de equipe, coeficientes e insumos de cada composição.
                   </p>
                 </div>
 
@@ -335,26 +472,32 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
                       <HardHat className="w-4 h-4 text-amber-600" />
-                      <span>Ajuste de Produtividade da Equipe</span>
+                      <span>Produtividade Efetiva e Coeficiente de Mão de Obra</span>
                     </h5>
-                    <p className="text-xs text-slate-600">
-                      No painel superior da CPU, edite a <strong>Produtividade (ex: m/h ou m³/h)</strong>. O sistema recalcula em tempo real o coeficiente e o custo unitário de cada profissional e equipamento vinculado à equipe.
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      O sistema calcula o coeficiente horário de mão de obra e equipamentos dividindo a equipe pela produtividade efetiva por hora:
+                      <br />
+                      <code className="bg-white p-1 rounded border block my-1 font-mono text-[11px] text-slate-800">
+                        Produtividade Efetiva (un/h) = (Prod. Teórica / Dia × Fator Praticabilidade) / Horas por Dia
+                      </code>
+                      Se a equipe necessitar de 2 ajudantes e a produtividade for de 5m/h, o coeficiente de cada ajudante será automaticamente <code className="bg-white px-1 rounded border">0,40 h/m</code>.
                     </p>
                   </div>
 
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
                       <Boxes className="w-4 h-4 text-blue-600" />
-                      <span>Adicionar e Remover Insumos da CPU</span>
+                      <span>Adicionar Insumos e Consumo de Materiais</span>
                     </h5>
-                    <p className="text-xs text-slate-600">
-                      Clique no botão <strong>"+ Adicionar Insumo"</strong> para selecionar materiais, mão de obra ou serviços do banco de dados da obra e definir suas quantidades ou consumos específicos nesta CPU.
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Na tabela de insumos da CPU, clique em <strong>"+ Adicionar Insumo"</strong>. Selecione o insumo desejado do banco de dados e digite seu consumo unitário por unidade de CPU (ex: <code className="bg-white px-1 rounded border">1,05 kg de aço</code> por metro de solo grampeado).
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* 5. CURVA ABC */}
             {activeMenu === 'abc' && (
               <div className="space-y-6">
                 <div className="border-b border-slate-100 pb-4">
@@ -366,7 +509,7 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
                     <span>Curva ABC de Insumos & Rastreabilidade</span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-1">
-                    Identifique os insumos com maior representatividade financeira no orçamento da obra.
+                    Identifique os insumos com maior impacto financeiro na obra.
                   </p>
                 </div>
 
@@ -377,14 +520,14 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
                       <span>Classificação A, B e C</span>
                     </h5>
                     <p className="text-xs text-slate-600">
-                      A curva ordena todos os insumos do maior valor acumulado para o menor. Os itens de <strong>Classe A</strong> representam cerca de 80% do investimento e exigem maior atenção nas negociações.
+                      A curva ordena todos os insumos do maior valor acumulado para o menor. Os itens de <strong>Classe A</strong> representam cerca de 80% do custo e exigem maior controle e negociação.
                     </p>
                   </div>
 
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
                       <Search className="w-4 h-4 text-indigo-600" />
-                      <span>Botão de Rastreabilidade ("Onde é Usado?")</span>
+                      <span>Botão de Rastreabilidade ("Rastrear Uso")</span>
                     </h5>
                     <p className="text-xs text-slate-600">
                       Na tabela da Curva ABC, clique no botão <strong>"Rastrear Uso"</strong> ao lado de qualquer insumo. Uma janela exibirá exatamente em quais CPUs e em quais quantidades aquele insumo está sendo aplicado na obra.
@@ -394,79 +537,129 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
               </div>
             )}
 
+            {/* 6. BANCO DE INSUMOS & MODELO EXCEL */}
             {activeMenu === 'insumos' && (
               <div className="space-y-6">
-                <div className="border-b border-slate-100 pb-4">
-                  <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
-                    Gestão de Preços
-                  </span>
-                  <h4 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                    <Boxes className="w-6 h-6 text-slate-800" />
-                    <span>Aba Banco de Insumos Cadastrados</span>
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Manutenção de preços unitários dos insumos exclusivos da obra ativa.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                    <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                      <RefreshCw className="w-4 h-4 text-blue-600" />
-                      <span>Atualização de Preço e Efeito Cascata</span>
-                    </h5>
-                    <p className="text-xs text-slate-600">
-                      Ao editar o preço unitário de um insumo nesta aba (ex: valor do aço ou salário do operador), o sistema atualiza em tempo real <strong>todas as CPUs da obra</strong> que utilizam esse insumo.
+                <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
+                      Gestão de Preços & Planilhas
+                    </span>
+                    <h4 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                      <Boxes className="w-6 h-6 text-slate-800" />
+                      <span>Como Fazer Upload de Insumos com Excel</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Instruções para importação de tabelas de preços e download da planilha modelo.
                     </p>
                   </div>
 
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <button
+                    onClick={baixarModeloInsumos}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-extrabold shadow-sm transition flex items-center gap-2 shrink-0 self-start sm:self-auto"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Baixar Modelo Planilha Insumos (.xlsx)</span>
+                  </button>
+                </div>
+
+                {/* Passo a Passo: Upload de Insumos Excel */}
+                <div className="bg-emerald-50/70 border border-emerald-200 p-4 rounded-xl space-y-3">
+                  <h5 className="font-extrabold text-xs text-emerald-950 flex items-center gap-2">
+                    <Upload className="w-4 h-4 text-emerald-600" />
+                    <span>Passo a Passo: Como Fazer Upload da Planilha de Insumos</span>
+                  </h5>
+                  <ol className="text-xs text-slate-700 space-y-2 list-decimal list-inside leading-relaxed">
+                    <li>
+                      Acesse a aba <strong>Insumos Cadastrados</strong> no menu lateral.
+                    </li>
+                    <li>
+                      Clique no botão <strong>"Importar Insumos"</strong> no topo da página.
+                    </li>
+                    <li>
+                      Para garantir a leitura correta das colunas, baixe a planilha modelo clicando no botão verde <strong>"Baixar Modelo Planilha Insumos (.xlsx)"</strong> acima.
+                    </li>
+                    <li>
+                      Preencha suas cotações e preços na planilha mantendo as colunas do cabeçalho.
+                    </li>
+                    <li>
+                      Arraste ou selecione o arquivo gerado (formato <code className="bg-white px-1 rounded border">.xlsx</code> ou <code className="bg-white px-1 rounded border">.csv</code>) na caixa de upload.
+                    </li>
+                    <li>
+                      Confira a prévia dos insumos lidos e clique em <strong>"Confirmar Importação de X Insumos"</strong>.
+                    </li>
+                  </ol>
+                </div>
+
+                {/* Modelo de Planilha de Insumos */}
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
                     <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
                       <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                      <span>Importação em Lote por Planilha Excel</span>
+                      <span>Estrutura do Modelo de Planilha de Insumos (Excel / CSV)</span>
                     </h5>
-                    <p className="text-xs text-slate-600">
-                      Utilize o botão <strong>"Importar Insumos"</strong> para carregar uma lista completa de preços a partir de um arquivo de planilha (.xlsx ou .csv), agilizando a montagem do orçamento.
-                    </p>
+                    <button
+                      onClick={baixarModeloInsumos}
+                      className="text-emerald-700 hover:text-emerald-800 text-xs font-bold underline flex items-center gap-1"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Baixar Planilha</span>
+                    </button>
                   </div>
-                </div>
-              </div>
-            )}
 
-            {activeMenu === 'acessos' && isSuperAdmin && (
-              <div className="space-y-6">
-                <div className="border-b border-slate-100 pb-4">
-                  <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
-                    Administração Exclusiva
-                  </span>
-                  <h4 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                    <ShieldCheck className="w-6 h-6 text-amber-600" />
-                    <span>Aba Gestão de Acessos & Obras</span>
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Painel reservado ao Super Administrador para controlar usuários e definir quais obras cada um pode visualizar.
+                  <p className="text-xs text-slate-600">
+                    Sua planilha Excel de insumos deve possuir as seguintes colunas obrigatórias:
                   </p>
-                </div>
 
-                <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                    <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-amber-600" />
-                      <span>Convidar Usuário e Liberar Obras</span>
-                    </h5>
-                    <p className="text-xs text-slate-600">
-                      Clique em <strong>"+ Convidar / Liberar Acesso"</strong>, insira o e-mail do colaborador e marque individualmente as obras que ele terá permissão para visualizar no sistema.
-                    </p>
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+                    <table className="w-full text-left text-[11px] border-collapse">
+                      <thead className="bg-slate-800 text-white font-mono">
+                        <tr>
+                          <th className="p-2 border-r border-slate-700">ID Insumo</th>
+                          <th className="p-2 border-r border-slate-700">Tipo</th>
+                          <th className="p-2 border-r border-slate-700">Descrição</th>
+                          <th className="p-2 border-r border-slate-700">Unidade</th>
+                          <th className="p-2">Preço Unitário (R$)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 font-medium text-slate-700">
+                        <tr>
+                          <td className="p-2 border-r font-mono font-bold text-indigo-700">MAT-001</td>
+                          <td className="p-2 border-r">Material</td>
+                          <td className="p-2 border-r">Cimento Portland CP-II (saco 50kg)</td>
+                          <td className="p-2 border-r text-center">sc</td>
+                          <td className="p-2 text-right">42,50</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2 border-r font-mono font-bold text-indigo-700">MO-001</td>
+                          <td className="p-2 border-r">Mão de Obra</td>
+                          <td className="p-2 border-r">Pedreiro de Obra</td>
+                          <td className="p-2 border-r text-center">h</td>
+                          <td className="p-2 text-right">28,00</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2 border-r font-mono font-bold text-indigo-700">EQP-001</td>
+                          <td className="p-2 border-r">Equipamento</td>
+                          <td className="p-2 border-r">Caminhão Munck 12t</td>
+                          <td className="p-2 border-r text-center">h</td>
+                          <td className="p-2 text-right">180,00</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2 border-r font-mono font-bold text-indigo-700">TERC-001</td>
+                          <td className="p-2 border-r">Terceirizado</td>
+                          <td className="p-2 border-r">Ensaio de Carga Dinâmica em Estaca</td>
+                          <td className="p-2 border-r text-center">un</td>
+                          <td className="p-2 text-right">3500,00</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
 
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                    <h5 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>Botão Salvar Alterações</span>
-                    </h5>
-                    <p className="text-xs text-slate-600">
-                      Ao ajustar as obras ou o nível de acesso de qualquer usuário na tabela, a linha indicará pendência de salvamento. Clique em <strong>"Salvar Alterações"</strong> (ou "Salvar Todas") para aplicar as mudanças na nuvem instantaneamente.
-                    </p>
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-start gap-2">
+                    <RefreshCw className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Efeito Cascata:</strong> Sempre que você importa ou altera o preço de um insumo, o sistema atualiza automaticamente o valor final de todas as CPUs da obra que usam aquele insumo!
+                    </span>
                   </div>
                 </div>
               </div>
@@ -478,7 +671,7 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
         <div className="bg-slate-100 border-t border-slate-200 px-6 py-3.5 flex items-center justify-between shrink-0">
           <div className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
             <Info className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Sistema SEEL Engenharia — Dúvidas sobre operacionalização e cadastros? Entre em contato com a equipe de engenharia.</span>
+            <span>Sistema SEEL Engenharia — Utilização operacional de orçamentos e cadastros de obras.</span>
           </div>
 
           <button
