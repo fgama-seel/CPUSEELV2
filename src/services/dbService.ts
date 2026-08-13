@@ -9,6 +9,7 @@ import {
 import { db, auth } from '../lib/firebase';
 import { Obra, CPU, InsumoBase, UserPermission, Insumo, Comentario } from '../types';
 import { getPendingCPUs, savePendingCPUToCache } from '../lib/pendingCache';
+import { firestoreTracker } from './firestoreTracker';
 
 export enum OperationType {
   CREATE = 'create',
@@ -61,11 +62,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // Subscribe to all Obras
 export function subscribeObras(callback: (obras: Obra[]) => void) {
   const colRef = collection(db, 'obras');
+  firestoreTracker.updateActiveListeners(1);
   return onSnapshot(colRef, (snapshot) => {
     const list: Obra[] = [];
     snapshot.forEach((docSnap) => {
       list.push({ id: docSnap.id, ...docSnap.data() } as Obra);
     });
+    firestoreTracker.logOperation('SNAPSHOT', 'obras', snapshot.size, `Sincronização em tempo real de Obras (${snapshot.size} docs)`);
     // Sort by code / name
     list.sort((a, b) => a.codigo.localeCompare(b.codigo));
     callback(list);
@@ -77,6 +80,7 @@ export function subscribeObras(callback: (obras: Obra[]) => void) {
 // Subscribe to CPUs for a specific Obra or all CPUs
 export function subscribeCPUs(obraId: string | null, callback: (cpus: CPU[]) => void) {
   const colRef = collection(db, 'cpus');
+  firestoreTracker.updateActiveListeners(1);
   return onSnapshot(colRef, (snapshot) => {
     let list: CPU[] = [];
     snapshot.forEach((docSnap) => {
@@ -85,6 +89,7 @@ export function subscribeCPUs(obraId: string | null, callback: (cpus: CPU[]) => 
         list.push({ id: docSnap.id, ...data });
       }
     });
+    firestoreTracker.logOperation('SNAPSHOT', 'cpus', snapshot.size, `Sincronização em tempo real de CPUs (${snapshot.size} docs)`);
     // Sort by code
     list.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
     callback(list);
@@ -96,6 +101,7 @@ export function subscribeCPUs(obraId: string | null, callback: (cpus: CPU[]) => 
 // Subscribe to Banco de Insumos for a specific Obra
 export function subscribeBancoInsumos(obraId: string | null, callback: (insumos: InsumoBase[]) => void) {
   const colRef = collection(db, 'bancoInsumos');
+  firestoreTracker.updateActiveListeners(1);
   return onSnapshot(colRef, (snapshot) => {
     const list: InsumoBase[] = [];
     snapshot.forEach((docSnap) => {
@@ -106,6 +112,7 @@ export function subscribeBancoInsumos(obraId: string | null, callback: (insumos:
         list.push({ id: docSnap.id, ...data });
       }
     });
+    firestoreTracker.logOperation('SNAPSHOT', 'bancoInsumos', snapshot.size, `Sincronização em tempo real do Banco de Insumos (${snapshot.size} docs)`);
     list.sort((a, b) => (a.descricao || '').localeCompare(b.descricao || ''));
     callback(list);
   }, (err) => {
@@ -116,11 +123,13 @@ export function subscribeBancoInsumos(obraId: string | null, callback: (insumos:
 // Subscribe to User Permissions (Admin)
 export function subscribeUserPermissions(callback: (perms: UserPermission[]) => void) {
   const colRef = collection(db, 'userPermissions');
+  firestoreTracker.updateActiveListeners(1);
   return onSnapshot(colRef, (snapshot) => {
     const list: UserPermission[] = [];
     snapshot.forEach((docSnap) => {
       list.push({ id: docSnap.id, ...docSnap.data() } as UserPermission);
     });
+    firestoreTracker.logOperation('SNAPSHOT', 'userPermissions', snapshot.size, `Sincronização em tempo real de Permissões (${snapshot.size} docs)`);
     list.sort((a, b) => (a.email || '').localeCompare(b.email || ''));
     callback(list);
   }, (err) => {
@@ -138,6 +147,7 @@ export async function saveCPU(cpu: CPU): Promise<void> {
       updatedAt: new Date().toISOString()
     };
     await setDoc(docRef, dataToSave, { merge: true });
+    firestoreTracker.logOperation('WRITE', 'cpus', 1, `Escrita: Salvar CPU ${cpu.code} - ${cpu.nome}`);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -157,6 +167,7 @@ export async function createCPU(cpuData: Omit<CPU, 'id'>): Promise<string> {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
+    firestoreTracker.logOperation('WRITE', 'cpus', 1, `Criação da CPU ${cpuData.code} (${customId})`);
     return customId;
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, path);
@@ -169,6 +180,7 @@ export async function deleteCPU(cpuId: string): Promise<void> {
   const path = `cpus/${cpuId}`;
   try {
     await deleteDoc(doc(db, 'cpus', cpuId));
+    firestoreTracker.logOperation('DELETE', 'cpus', 1, `Exclusão do doc cpus/${cpuId}`);
   } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, path);
   }
@@ -180,6 +192,7 @@ export async function saveObra(obra: Obra): Promise<void> {
   try {
     const docRef = doc(db, 'obras', obra.id);
     await setDoc(docRef, obra, { merge: true });
+    firestoreTracker.logOperation('WRITE', 'obras', 1, `Atualização da Obra ${obra.codigo}`);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -197,6 +210,7 @@ export async function createObra(obraData: Omit<Obra, 'id'>): Promise<string> {
       createdAt: new Date().toISOString()
     };
     await setDoc(docRef, newObra);
+    firestoreTracker.logOperation('WRITE', 'obras', 1, `Criação da Obra ${obraData.codigo}`);
     return customId;
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, path);
@@ -215,6 +229,7 @@ export async function createInsumoBase(insumo: Omit<InsumoBase, 'id'>): Promise<
       id_insumo: insumo.id_insumo || customId
     };
     await setDoc(doc(db, 'bancoInsumos', customId), newInsumo);
+    firestoreTracker.logOperation('WRITE', 'bancoInsumos', 1, `Cadastro de Insumo ${insumo.descricao}`);
     return newInsumo;
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, path);
@@ -228,6 +243,7 @@ export async function saveInsumoBase(insumo: InsumoBase): Promise<void> {
   try {
     const docRef = doc(db, 'bancoInsumos', insumo.id);
     await setDoc(docRef, insumo, { merge: true });
+    firestoreTracker.logOperation('WRITE', 'bancoInsumos', 1, `Atualização do Insumo ${insumo.descricao}`);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
     throw err;
@@ -356,4 +372,49 @@ export async function registerUserRequest(email: string, displayName: string): P
     throw err;
   }
 }
+
+// Delete Obra and all associated CPUs and BancoInsumos
+export async function deleteObra(obraId: string): Promise<{ deletedCpus: number; deletedInsumos: number }> {
+  const path = `obras/${obraId}`;
+  let deletedCpus = 0;
+  let deletedInsumos = 0;
+
+  try {
+    // 1. Query and delete all associated CPUs
+    const cpusSnap = await getDocs(collection(db, 'cpus'));
+    for (const docSnap of cpusSnap.docs) {
+      const data = docSnap.data();
+      if (data.obraId === obraId) {
+        await deleteDoc(doc(db, 'cpus', docSnap.id));
+        deletedCpus++;
+      }
+    }
+
+    // 2. Query and delete all associated BancoInsumos
+    const insumosSnap = await getDocs(collection(db, 'bancoInsumos'));
+    for (const docSnap of insumosSnap.docs) {
+      const data = docSnap.data();
+      if (data.obraId === obraId) {
+        await deleteDoc(doc(db, 'bancoInsumos', docSnap.id));
+        deletedInsumos++;
+      }
+    }
+
+    // 3. Delete Obra document
+    await deleteDoc(doc(db, 'obras', obraId));
+
+    firestoreTracker.logOperation(
+      'DELETE',
+      'obras',
+      1 + deletedCpus + deletedInsumos,
+      `Exclusão completa da Obra (${obraId}) com ${deletedCpus} CPUs e ${deletedInsumos} insumos vinculados`
+    );
+
+    return { deletedCpus, deletedInsumos };
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+    throw err;
+  }
+}
+
 

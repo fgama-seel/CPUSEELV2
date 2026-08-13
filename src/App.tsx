@@ -12,6 +12,7 @@ import {
   createCPU,
   deleteCPU,
   createObra,
+  deleteObra,
   createInsumoBase,
   registerUserRequest
 } from './services/dbService';
@@ -32,12 +33,14 @@ import { AbaABCInsumos } from './components/AbaABCInsumos';
 import { AbaInsumosCadastrados } from './components/AbaInsumosCadastrados';
 import { AbaGestaoAcessos } from './components/AbaGestaoAcessos';
 import { AbaDashboardCPU } from './components/AbaDashboardCPU';
+import { AbaPainelFirestore } from './components/AbaPainelFirestore';
 import { ModalNovaObra } from './components/ModalNovaObra';
 import { ModalNovaCPU } from './components/ModalNovaCPU';
 import { ModalInsumo } from './components/ModalInsumo';
 import { ModalImportarInsumos } from './components/ModalImportarInsumos';
 import { ModalComposicoes } from './components/ModalComposicoes';
 import { ModalGuiaUsuario } from './components/ModalGuiaUsuario';
+import { ModalExcluirObra } from './components/ModalExcluirObra';
 import { LoginScreen } from './components/LoginScreen';
 
 export default function App() {
@@ -56,7 +59,7 @@ export default function App() {
   const [bancoInsumos, setBancoInsumos] = useState<InsumoBase[]>([]);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'dashboard'>('resumo');
+  const [activeTab, setActiveTab] = useState<'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'firestore' | 'dashboard'>('resumo');
 
   // Pending Changes State
   const [pendingChanges, setPendingChanges] = useState<boolean>(() => Object.keys(getPendingCPUs()).length > 0);
@@ -71,6 +74,7 @@ export default function App() {
   const [isModalInsumoOpen, setIsModalInsumoOpen] = useState<boolean>(false);
   const [isModalImportarInsumosOpen, setIsModalImportarInsumosOpen] = useState<boolean>(false);
   const [isGuiaUsuarioOpen, setIsGuiaUsuarioOpen] = useState<boolean>(false);
+  const [obraToDelete, setObraToDelete] = useState<Obra | null>(null);
 
   // Traceability Modal State
   const [traceabilityInsumo, setTraceabilityInsumo] = useState<{ id: string; nome: string } | null>(null);
@@ -280,6 +284,15 @@ export default function App() {
     handleRegisterPendingCPU(updatedCpu);
   };
 
+  const handleConfirmDeleteObra = async (obraId: string) => {
+    await deleteObra(obraId);
+    setObraToDelete(null);
+    const remaining = allowedObras.filter((o) => o.id !== obraId);
+    if (activeObraId === obraId) {
+      setActiveObraId(remaining.length > 0 ? remaining[0].id : null);
+    }
+  };
+
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans text-slate-800">
       {/* If not logged in or not approved */}
@@ -324,6 +337,7 @@ export default function App() {
               onOpenModalNovaObra={() => setIsModalNovaObraOpen(true)}
               onOpenModalNovaCPU={() => setIsModalNovaCpuOpen(true)}
               onCloseMobile={() => setIsOpenMobileSidebar(false)}
+              onOpenModalExcluirObra={(obra) => setObraToDelete(obra)}
             />
 
             {/* Mobile Overlay */}
@@ -355,6 +369,8 @@ export default function App() {
                     <AbaResumo
                       activeObra={activeObra}
                       cpus={cpus}
+                      isSuperAdmin={isSuperAdmin}
+                      onOpenModalExcluirObra={(obra) => setObraToDelete(obra)}
                       onRefresh={() => {
                         // Triggers re-render
                         setActiveObraId(activeObraId);
@@ -396,6 +412,10 @@ export default function App() {
                       obras={obras}
                       currentUserEmail={userEmail}
                     />
+                  )}
+
+                  {activeTab === 'firestore' && isSuperAdmin && (
+                    <AbaPainelFirestore userEmail={userEmail || ''} />
                   )}
 
                   {activeTab === 'dashboard' && activeCpu ? (
@@ -472,6 +492,13 @@ export default function App() {
         isOpen={isGuiaUsuarioOpen}
         onClose={() => setIsGuiaUsuarioOpen(false)}
         isSuperAdmin={isSuperAdmin}
+      />
+
+      <ModalExcluirObra
+        obra={obraToDelete}
+        isOpen={!!obraToDelete}
+        onClose={() => setObraToDelete(null)}
+        onConfirmDelete={handleConfirmDeleteObra}
       />
     </div>
   );

@@ -11,7 +11,9 @@ import {
   ChevronDown,
   Layers,
   X,
-  Package
+  Package,
+  Database,
+  Trash2
 } from 'lucide-react';
 import { Obra, CPU } from '../types';
 
@@ -20,7 +22,7 @@ interface SidebarProps {
   activeObra: Obra | null;
   cpus: CPU[];
   activeCpu: CPU | null;
-  activeTab: 'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'dashboard';
+  activeTab: 'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'firestore' | 'dashboard';
   userEmail: string;
   isAdmin: boolean;
   isSuperAdmin?: boolean;
@@ -31,6 +33,7 @@ interface SidebarProps {
   onOpenModalNovaObra: () => void;
   onOpenModalNovaCPU: () => void;
   onCloseMobile: () => void;
+  onOpenModalExcluirObra?: (obra: Obra) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -48,7 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   onOpenModalNovaObra,
   onOpenModalNovaCPU,
-  onCloseMobile
+  onCloseMobile,
+  onOpenModalExcluirObra
 }) => {
   const [cpuSearch, setCpuSearch] = useState('');
   const [showObraSelector, setShowObraSelector] = useState(false);
@@ -116,23 +120,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {showObraSelector && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto">
               {obras.map((o) => (
-                <button
+                <div
                   key={o.id}
-                  onClick={() => {
-                    onSelectObra(o.id);
-                    setShowObraSelector(false);
-                  }}
-                  className={`w-full text-left p-2.5 text-xs font-medium border-b border-slate-700/50 hover:bg-slate-700 transition flex items-center justify-between gap-2 ${
-                    activeObra?.id === o.id
-                      ? 'bg-slate-700 text-blue-400 font-bold'
-                      : 'text-slate-200'
-                  }`}
+                  className="flex items-center justify-between border-b border-slate-700/50 hover:bg-slate-700 transition"
                 >
-                  <span className="truncate">{o.nome}</span>
-                  <span className="text-[10px] bg-slate-900 px-1.5 py-0.5 rounded text-slate-400 font-mono">
-                    {o.codigo}
-                  </span>
-                </button>
+                  <button
+                    onClick={() => {
+                      onSelectObra(o.id);
+                      setShowObraSelector(false);
+                    }}
+                    className={`flex-1 text-left p-2.5 text-xs font-medium flex items-center justify-between gap-2 ${
+                      activeObra?.id === o.id
+                        ? 'text-blue-400 font-bold'
+                        : 'text-slate-200'
+                    }`}
+                  >
+                    <span className="truncate">{o.nome}</span>
+                    <span className="text-[10px] bg-slate-900 px-1.5 py-0.5 rounded text-slate-400 font-mono shrink-0">
+                      {o.codigo}
+                    </span>
+                  </button>
+
+                  {isSuperAdmin && onOpenModalExcluirObra && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowObraSelector(false);
+                        onOpenModalExcluirObra(o);
+                      }}
+                      className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-950/60 rounded transition shrink-0 mr-1"
+                      title={`Excluir Obra (${o.codigo}) - Super Admin`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               ))}
 
               {isAdmin && (
@@ -223,21 +245,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         {isSuperAdmin && (
-          <button
-            onClick={() => {
-              onSelectTab('acessos');
-              onCloseMobile();
-            }}
-            className={`w-full text-left px-3 py-2 rounded text-xs font-medium flex items-center gap-3 transition ${
-              activeTab === 'acessos'
-                ? 'bg-slate-800 text-white font-bold shadow-sm'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
-            <Users className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Gestão de Acessos</span>
-          </button>
+          <>
+            <button
+              onClick={() => {
+                onSelectTab('acessos');
+                onCloseMobile();
+              }}
+              className={`w-full text-left px-3 py-2 rounded text-xs font-medium flex items-center gap-3 transition ${
+                activeTab === 'acessos'
+                  ? 'bg-slate-800 text-white font-bold shadow-sm'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+              <Users className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Gestão de Acessos</span>
+            </button>
+
+            <button
+              onClick={() => {
+                onSelectTab('firestore');
+                onCloseMobile();
+              }}
+              className={`w-full text-left px-3 py-2 rounded text-xs font-medium flex items-center gap-3 transition ${
+                activeTab === 'firestore'
+                  ? 'bg-slate-800 text-white font-bold shadow-sm'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0"></span>
+              <Database className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span>Painel Firestore</span>
+            </button>
+          </>
         )}
       </div>
 

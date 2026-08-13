@@ -14,7 +14,8 @@ import {
   Table,
   Layers,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Trash2
 } from 'lucide-react';
 import { Obra, CPU } from '../types';
 import { formatMoney } from '../lib/excelExport';
@@ -26,9 +27,17 @@ interface AbaResumoProps {
   activeObra: Obra | null;
   cpus: CPU[];
   onRefresh: () => void;
+  isSuperAdmin?: boolean;
+  onOpenModalExcluirObra?: (obra: Obra) => void;
 }
 
-export const AbaResumo: React.FC<AbaResumoProps> = ({ activeObra, cpus, onRefresh }) => {
+export const AbaResumo: React.FC<AbaResumoProps> = ({
+  activeObra,
+  cpus,
+  onRefresh,
+  isSuperAdmin,
+  onOpenModalExcluirObra
+}) => {
   const [editingIndireto, setEditingIndireto] = useState(false);
   const [indiretoValue, setIndiretoValue] = useState<number>(activeObra?.custoIndiretoAtual || 0);
 
@@ -189,6 +198,17 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({ activeObra, cpus, onRefres
               <Database className="w-3.5 h-3.5" />
               <span>Importar BD CPU</span>
             </button>
+
+            {isSuperAdmin && onOpenModalExcluirObra && activeObra && (
+              <button
+                onClick={() => onOpenModalExcluirObra(activeObra)}
+                className="bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5 border border-red-500 shadow-xs"
+                title="Excluir permanentemente esta obra e seus dados do Firestore (Super Admin)"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Excluir Obra</span>
+              </button>
+            )}
 
             <button
               onClick={onRefresh}

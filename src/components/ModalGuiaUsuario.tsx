@@ -22,7 +22,11 @@ import {
   ShieldCheck,
   Receipt,
   Percent,
-  Sliders
+  Sliders,
+  Database,
+  Server,
+  Radio,
+  Trash2
 } from 'lucide-react';
 
 interface ModalGuiaUsuarioProps {
@@ -147,6 +151,12 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
       title: 'Banco de Insumos (Upload Excel)',
       icon: Boxes,
       desc: 'Cadastro, upload Excel e modelo de planilha'
+    },
+    {
+      id: 'painel_firestore',
+      title: 'Painel Firestore (Super Admin)',
+      icon: Database,
+      desc: 'Monitoramento de cota, leituras, escritas e logs em tempo real'
     }
   ];
 
@@ -810,6 +820,95 @@ export const ModalGuiaUsuario: React.FC<ModalGuiaUsuarioProps> = ({
                     <span>
                       <strong>Efeito Cascata:</strong> Sempre que você importa ou altera o preço de um insumo, o sistema atualiza automaticamente o valor final de todas as CPUs da obra que usam aquele insumo!
                     </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PAINEL FIRESTORE (SUPER ADMIN) */}
+            {activeMenu === 'painel_firestore' && (
+              <div className="space-y-6">
+                <div className="border-b border-slate-100 pb-4">
+                  <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block mb-1">
+                    Recurso Exclusivo Super Admin
+                  </span>
+                  <h4 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                    <Database className="w-6 h-6 text-blue-600" />
+                    <span>Painel de Controle de Requisições Firestore</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Acompanhe em tempo real a utilização do banco de dados na nuvem, telemetria de requisições e consumo contra os limites do plano.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="font-bold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <Server className="w-4 h-4 text-blue-600" />
+                      <span>1. Indicadores Principais de Desempenho (KPIs)</span>
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-600">
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Total de Leituras (Reads)</strong>
+                        Número de documentos lidos do banco. Acompanha barra de progresso em relação à cota diária gratuita (50.000 leituras/dia).
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Total de Escritas (Writes)</strong>
+                        Operações de salvamento de CPUs, obras e insumos (cota de 20.000 escritas/dia).
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Exclusões & Conexões Ativas</strong>
+                        Monitoramento de deleções de documentos e contagem de ouvintes em tempo real (`onSnapshot`).
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="font-bold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <Radio className="w-4 h-4 text-purple-600" />
+                      <span>2. Detalhamento por Coleção & Logs de Atividade</span>
+                    </h5>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Visualize a distribuição de leituras e escritas separadas pelas coleções principais do sistema: <code>cpus</code>, <code>obras</code>, <code>bancoInsumos</code> e <code>userPermissions</code>.
+                    </p>
+                    <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs text-slate-700">
+                      <strong>Log do Histórico:</strong> Registra os últimos 100 eventos disparados no cliente com data/hora, tipo de operação, coleção alvo e quantidade de documentos afetados.
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <h5 className="font-bold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <Download className="w-4 h-4 text-emerald-600" />
+                      <span>3. Ferramentas de Teste e Exportação</span>
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-600">
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Testar Requisição</strong>
+                        Dispara uma requisição de teste para validar a gravação nos logs.
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Exportar CSV</strong>
+                        Gera um relatório baixável com todo o histórico de logs da sessão.
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-slate-200">
+                        <strong className="text-slate-800 block mb-0.5">Zerar Contadores</strong>
+                        Reinicia os contadores do painel para iniciar um novo período de testes.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-red-50 rounded-xl border border-red-200 space-y-3">
+                    <h5 className="font-bold text-xs text-red-950 uppercase tracking-wider flex items-center gap-2">
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                      <span>4. Exclusão de Obras (Segurança com Dupla Confirmação)</span>
+                    </h5>
+                    <p className="text-xs text-red-900 leading-relaxed">
+                      Como Super Admin, você pode excluir qualquer obra no menu lateral ou na aba "Resumo da Obra". Para evitar exclusões acidentais, a janela de checagem exige:
+                    </p>
+                    <ul className="text-xs text-red-950 space-y-1 list-disc list-inside font-semibold">
+                      <li>Digitação manual exata do nome do projeto na Etapa 1;</li>
+                      <li>Marcação da caixa de ciência dos riscos e confirmação dupla na Etapa 2.</li>
+                    </ul>
                   </div>
                 </div>
               </div>
