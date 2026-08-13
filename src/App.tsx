@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Building } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { seedInitialDataIfNeeded, ADMIN_EMAIL } from './lib/firebaseSeed';
@@ -137,14 +138,25 @@ export default function App() {
   const isApproved = isSuperAdmin || currentUserPerm?.status === 'APPROVED';
   const isAdmin = isSuperAdmin || currentUserPerm?.role === 'ADMIN';
 
-  // Filter allowed Obras for guest user
+  // Filter allowed Obras for current user
   const allowedObras = obras.filter((o) => {
-    if (isSuperAdmin || currentUserPerm?.obrasPermitidas.includes('*')) return true;
+    if (isSuperAdmin || currentUserPerm?.obrasPermitidas?.includes('*')) return true;
     if (o.emailsAcesso && o.emailsAcesso.some((e) => e.toLowerCase() === normalizedEmail)) return true;
-    return currentUserPerm?.obrasPermitidas.includes(o.id);
+    return currentUserPerm?.obrasPermitidas?.includes(o.id);
   });
 
-  const activeObra = obras.find((o) => o.id === activeObraId) || (allowedObras.length > 0 ? allowedObras[0] : null);
+  // Keep activeObraId synced with allowedObras list
+  useEffect(() => {
+    if (allowedObras.length > 0) {
+      if (!activeObraId || !allowedObras.some((o) => o.id === activeObraId)) {
+        setActiveObraId(allowedObras[0].id);
+      }
+    } else {
+      setActiveObraId(null);
+    }
+  }, [allowedObras.map((o) => o.id).join(',')]);
+
+  const activeObra = allowedObras.find((o) => o.id === activeObraId) || (allowedObras.length > 0 ? allowedObras[0] : null);
   const activeCpu = cpus.find((c) => c.id === activeCpuId) || (cpus.length > 0 ? cpus[0] : null);
 
   // Compute Total Cost for Active Obra
@@ -311,73 +323,90 @@ export default function App() {
 
             {/* Main Tab View */}
             <main className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-100">
-              {activeTab === 'resumo' && (
-                <AbaResumo
-                  activeObra={activeObra}
-                  cpus={cpus}
-                  onRefresh={() => {
-                    // Triggers re-render
-                    setActiveObraId(activeObraId);
-                  }}
-                />
-              )}
-
-              {activeTab === 'tabela' && (
-                <AbaTabelaCPUs
-                  cpus={cpus}
-                  activeObra={activeObra}
-                  onSelectCpu={handleSelectCpu}
-                  onDeleteCpu={handleDeleteCPU}
-                />
-              )}
-
-              {activeTab === 'abc' && (
-                <AbaABCInsumos
-                  cpus={cpus}
-                  activeObra={activeObra}
-                  onOpenTraceability={(insumoId, insumoNome) => {
-                    setTraceabilityInsumo({ id: insumoId, nome: insumoNome });
-                  }}
-                />
-              )}
-
-              {activeTab === 'insumos' && (
-                <AbaInsumosCadastrados
-                  bancoInsumos={bancoInsumos}
-                  activeObra={activeObra}
-                  userPermission={currentUserPerm}
-                  userEmail={userEmail}
-                />
-              )}
-
-              {activeTab === 'acessos' && isAdmin && (
-                <AbaGestaoAcessos
-                  userPermissions={userPermissions}
-                  obras={obras}
-                  currentUserEmail={userEmail}
-                />
-              )}
-
-              {activeTab === 'dashboard' && activeCpu ? (
-                <AbaDashboardCPU
-                  cpu={activeCpu}
-                  activeObra={activeObra}
-                  userEmail={userEmail}
-                  onSaveCpu={handleSaveCpu}
-                  onDeleteCpu={handleDeleteCPU}
-                  onOpenModalInsumo={() => setIsModalInsumoOpen(true)}
-                  onRegisterPendingChange={handleRegisterPendingCPU}
-                />
-              ) : activeTab === 'dashboard' ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">
-                  <h3 className="text-xl font-bold text-slate-600 mb-1">
-                    Selecione uma CPU no menu lateral
+              {!activeObra && activeTab !== 'acessos' ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-8 text-center max-w-lg mx-auto">
+                  <Building className="w-12 h-12 text-slate-400 mb-3" />
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">
+                    Nenhuma Obra Liberada para Seu Perfil
                   </h3>
-                  <p className="text-xs">
-                    Para visualizar a memória de cálculo unitária e editar parâmetros de produtividade.
+                  <p className="text-xs text-slate-500 mb-4">
+                    Você está autenticado no sistema, mas o Administrador ainda não liberou o seu acesso a nenhuma obra específica da SEEL Engenharia.
                   </p>
+                  <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-3.5 rounded-xl font-bold">
+                    Solicite ao Administrador (fgama@seel.com.br) para vincular seu e-mail às obras desejadas.
+                  </div>
                 </div>
-              ) : null}
+              ) : (
+                <>
+                  {activeTab === 'resumo' && (
+                    <AbaResumo
+                      activeObra={activeObra}
+                      cpus={cpus}
+                      onRefresh={() => {
+                        // Triggers re-render
+                        setActiveObraId(activeObraId);
+                      }}
+                    />
+                  )}
+
+                  {activeTab === 'tabela' && (
+                    <AbaTabelaCPUs
+                      cpus={cpus}
+                      activeObra={activeObra}
+                      onSelectCpu={handleSelectCpu}
+                      onDeleteCpu={handleDeleteCPU}
+                    />
+                  )}
+
+                  {activeTab === 'abc' && (
+                    <AbaABCInsumos
+                      cpus={cpus}
+                      activeObra={activeObra}
+                      onOpenTraceability={(insumoId, insumoNome) => {
+                        setTraceabilityInsumo({ id: insumoId, nome: insumoNome });
+                      }}
+                    />
+                  )}
+
+                  {activeTab === 'insumos' && (
+                    <AbaInsumosCadastrados
+                      bancoInsumos={bancoInsumos}
+                      activeObra={activeObra}
+                      userPermission={currentUserPerm}
+                      userEmail={userEmail}
+                    />
+                  )}
+
+                  {activeTab === 'acessos' && isAdmin && (
+                    <AbaGestaoAcessos
+                      userPermissions={userPermissions}
+                      obras={obras}
+                      currentUserEmail={userEmail}
+                    />
+                  )}
+
+                  {activeTab === 'dashboard' && activeCpu ? (
+                    <AbaDashboardCPU
+                      cpu={activeCpu}
+                      activeObra={activeObra}
+                      userEmail={userEmail}
+                      onSaveCpu={handleSaveCpu}
+                      onDeleteCpu={handleDeleteCPU}
+                      onOpenModalInsumo={() => setIsModalInsumoOpen(true)}
+                      onRegisterPendingChange={handleRegisterPendingCPU}
+                    />
+                  ) : activeTab === 'dashboard' ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">
+                      <h3 className="text-xl font-bold text-slate-600 mb-1">
+                        Selecione uma CPU no menu lateral
+                      </h3>
+                      <p className="text-xs">
+                        Para visualizar a memória de cálculo unitária e editar parâmetros de produtividade.
+                      </p>
+                    </div>
+                  ) : null}
+                </>
+              )}
             </main>
           </div>
         </div>
