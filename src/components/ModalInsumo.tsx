@@ -1,13 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Box, X, CloudUpload, PlusCircle, Database, Search, Filter, Plus } from 'lucide-react';
-import { InsumoBase, Insumo, TipoInsumo } from '../types';
+import {
+  Box,
+  X,
+  CloudUpload,
+  PlusCircle,
+  Database,
+  Search,
+  Filter,
+  Plus,
+  Briefcase,
+  Layers,
+  Sparkles,
+  Info
+} from 'lucide-react';
+import { InsumoBase, Insumo, TipoInsumo, Obra } from '../types';
 import { formatMoney } from '../lib/excelExport';
+import { HORAS_MES_PADRAO, calcularMochila } from '../lib/mochilaDefaults';
 
 interface ModalInsumoProps {
   isOpen: boolean;
   bancoInsumos: InsumoBase[];
+  activeObra?: Obra | null;
   onClose: () => void;
-  onAddInsumoToCpu: (insumo: Insumo) => void;
+  onAddInsumoToCpu: (insumo: Insumo | Insumo[]) => void;
   onCadastrarNovoInsumo: (novoBase: Omit<InsumoBase, 'id'>) => Promise<InsumoBase>;
   onOpenImportModal?: () => void;
 }
@@ -22,6 +37,7 @@ function normalizeText(str: string): string {
 export const ModalInsumo: React.FC<ModalInsumoProps> = ({
   isOpen,
   bancoInsumos,
+  activeObra,
   onClose,
   onAddInsumoToCpu,
   onCadastrarNovoInsumo,
@@ -30,6 +46,9 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
   const [activeTab, setActiveTab] = useState<'buscar' | 'cadastrar'>('buscar');
   const [filtroTipo, setFiltroTipo] = useState<'Todos' | TipoInsumo>('Todos');
   const [busca, setBusca] = useState('');
+
+  // Mochila insertion mode toggle: 'incorporada' | 'separada' | 'sem_mochila'
+  const [modoMochilaMO, setModoMochilaMO] = useState<'incorporada' | 'separada' | 'sem_mochila'>('incorporada');
   
   // New Insumo form state
   const [novoTipo, setNovoTipo] = useState<TipoInsumo>('Material');
@@ -39,6 +58,12 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
   const [isCadastrando, setIsCadastrando] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Mochila calculations
+  const mochilaConfig = activeObra?.mochilaMO;
+  const { custoHoraMochila, totalMensal: mochilaTotalMensal } = mochilaConfig?.itens
+    ? calcularMochila(mochilaConfig.itens, mochilaConfig.horasMesPadrao || HORAS_MES_PADRAO)
+    : { custoHoraMochila: 0, totalMensal: 0 };
 
   useEffect(() => {
     if (isOpen) {
@@ -72,15 +97,72 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
   const countTerceirizado = bancoInsumos.filter((i) => i.tipo === 'Terceirizado').length;
 
   const handleSelectAndInsert = (base: InsumoBase) => {
-    const insumo: Insumo = {
-      id_insumo: base.id_insumo || base.id,
-      tipo: base.tipo,
-      descricao: base.descricao,
-      unid: base.unid,
-      coef: 1.0,
-      pr_unit: base.pr_unit
-    };
-    onAddInsumoToCpu(insumo);
+    const mochilaItem = activeObra?.mochilasMO?.[base.id || base.id_insumo];
+    const custoMochilaEfetivo = mochilaItem?.custoHoraMochila !== undefined ? mochilaItem.custoHoraMochila : custoHoraMochila;
+
+    if (base.tipo === 'Mão de Obra' && custoMochilaEfetivo > 0) {
+      if (modoMochilaMO === 'incorporada') {
+        const precoBase = Number(base.pr_unit) || 0;
+        const precoFinal = Number((precoBase + custoMochilaEfetivo).toFixed(4));
+        const insumo: Insumo = {
+          id_insumo: base.id_insumo || base.id,
+          tipo: base.tipo,
+          descricao: `${base.descricao} (c/ Mochila)`,
+          unid: base.unid,
+          coef: 1.0,
+          pr_unit: precoFinal,
+          mochilaIncorporada: true,
+          custoMochilaUnit: custoMochilaEfetivo,
+          precoBaseMO: precoBase
+        };
+        onAddInsumoToCpu(insumo);
+      } else if (modoMochilaMO === 'separada') {
+        const insumoMO: Insumo = {
+          id_insumo: base.id_insumo || base.id,
+          tipo: base.tipo,
+          descricao: base.descricao,
+          unid: base.unid,
+          coef: 1.0,
+          pr_unit: base.pr_unit,
+          mochilaIncorporada: false,
+          precoBaseMO: base.pr_unit
+        };
+        const insumoMochila: Insumo = {
+          id_insumo: `MOCH_${base.id_insumo || base.id}`,
+          tipo: 'Mão de Obra',
+          descricao: `[MOCHILA] Encargos e Benefícios - ${base.descricao}`,
+          unid: 'h',
+          coef: 1.0,
+          pr_unit: custoMochilaEfetivo,
+          isMochilaAvulsa: true,
+          custoMochilaUnit: custoMochilaEfetivo
+        };
+        onAddInsumoToCpu([insumoMO, insumoMochila]);
+      } else {
+        // sem_mochila
+        const insumo: Insumo = {
+          id_insumo: base.id_insumo || base.id,
+          tipo: base.tipo,
+          descricao: base.descricao,
+          unid: base.unid,
+          coef: 1.0,
+          pr_unit: base.pr_unit,
+          mochilaIncorporada: false,
+          precoBaseMO: base.pr_unit
+        };
+        onAddInsumoToCpu(insumo);
+      }
+    } else {
+      const insumo: Insumo = {
+        id_insumo: base.id_insumo || base.id,
+        tipo: base.tipo,
+        descricao: base.descricao,
+        unid: base.unid,
+        coef: 1.0,
+        pr_unit: base.pr_unit
+      };
+      onAddInsumoToCpu(insumo);
+    }
     onClose();
   };
 
@@ -98,18 +180,8 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
       pr_unit: Number(novoPreco) || 0
     });
 
-    const insumo: Insumo = {
-      id_insumo: novoBase.id_insumo,
-      tipo: novoBase.tipo,
-      descricao: novoBase.descricao,
-      unid: novoBase.unid,
-      coef: 1.0,
-      pr_unit: novoBase.pr_unit
-    };
-
-    onAddInsumoToCpu(insumo);
+    handleSelectAndInsert(novoBase);
     setIsCadastrando(false);
-    onClose();
   };
 
   const handleSwitchToNovoComDesc = () => {
@@ -134,7 +206,7 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-200">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-200">
         {/* Modal Header */}
         <div className="px-5 py-3.5 border-b border-slate-800 flex justify-between items-center bg-slate-900 text-white shrink-0">
           <div className="flex items-center gap-2.5">
@@ -199,104 +271,153 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
           )}
         </div>
 
-        {/* Modal Body */}
-        <div className="p-5 overflow-y-auto custom-scroll flex-1">
-          {activeTab === 'buscar' ? (
-            <div className="space-y-4">
-              {/* Type Filter Tabs */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
-                  <Filter className="w-3.5 h-3.5 text-slate-400" />
-                  Filtrar:
+        {/* Modal Scrollable Content */}
+        <div className="p-5 overflow-y-auto custom-scroll flex-1 space-y-4">
+          {/* Mochila Selection Controls Banner */}
+          {custoHoraMochila > 0 && (
+            <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-amber-500/20 rounded-lg text-amber-700">
+                    <Briefcase className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                      Mochila de Mão de Obra:
+                    </span>
+                    <span className="text-xs font-mono font-extrabold text-amber-900 ml-1.5 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded">
+                      +{formatMoney(custoHoraMochila)} / h
+                    </span>
+                  </div>
+                </div>
+
+                <span className="text-[11px] text-amber-800/80">
+                  (Base {mochilaConfig?.horasMesPadrao || HORAS_MES_PADRAO}h/mês)
                 </span>
-
-                <button
-                  type="button"
-                  onClick={() => setFiltroTipo('Todos')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 border ${
-                    filtroTipo === 'Todos'
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <span>Todos</span>
-                  <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-extrabold ${
-                    filtroTipo === 'Todos' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {countTodos}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFiltroTipo('Material')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 border ${
-                    filtroTipo === 'Material'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <span>Material</span>
-                  <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-extrabold ${
-                    filtroTipo === 'Material' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {countMaterial}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFiltroTipo('Mão de Obra')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 border ${
-                    filtroTipo === 'Mão de Obra'
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <span>Mão de Obra</span>
-                  <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-extrabold ${
-                    filtroTipo === 'Mão de Obra' ? 'bg-amber-700 text-white' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {countMaoObra}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFiltroTipo('Equipamento')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 border ${
-                    filtroTipo === 'Equipamento'
-                      ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <span>Equipamento</span>
-                  <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-extrabold ${
-                    filtroTipo === 'Equipamento' ? 'bg-purple-700 text-white' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {countEquipamento}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFiltroTipo('Terceirizado')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 border ${
-                    filtroTipo === 'Terceirizado'
-                      ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <span>Terceirizado</span>
-                  <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-extrabold ${
-                    filtroTipo === 'Terceirizado' ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {countTerceirizado}
-                  </span>
-                </button>
               </div>
 
-              {/* Real-time Search Bar */}
+              {/* Toggle Buttons Marker */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setModoMochilaMO('incorporada')}
+                  className={`p-2.5 rounded-lg border text-left transition flex items-start gap-2 ${
+                    modoMochilaMO === 'incorporada'
+                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-400/40'
+                      : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="modoMochilaMO"
+                    checked={modoMochilaMO === 'incorporada'}
+                    onChange={() => setModoMochilaMO('incorporada')}
+                    className="mt-0.5 pointer-events-none accent-amber-600"
+                  />
+                  <div>
+                    <p className="text-xs font-bold leading-tight">
+                      Incorporar na Hora
+                    </p>
+                    <p className={`text-[10px] mt-0.5 ${modoMochilaMO === 'incorporada' ? 'text-amber-100' : 'text-slate-500'}`}>
+                      Soma +{formatMoney(custoHoraMochila)}/h direto no custo unitário
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setModoMochilaMO('separada')}
+                  className={`p-2.5 rounded-lg border text-left transition flex items-start gap-2 ${
+                    modoMochilaMO === 'separada'
+                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-400/40'
+                      : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="modoMochilaMO"
+                    checked={modoMochilaMO === 'separada'}
+                    onChange={() => setModoMochilaMO('separada')}
+                    className="mt-0.5 pointer-events-none accent-amber-600"
+                  />
+                  <div>
+                    <p className="text-xs font-bold leading-tight">
+                      Exibir Separadamente
+                    </p>
+                    <p className={`text-[10px] mt-0.5 ${modoMochilaMO === 'separada' ? 'text-amber-100' : 'text-slate-500'}`}>
+                      Cria 2 linhas na CPU: MO Base + Linha Mochila
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setModoMochilaMO('sem_mochila')}
+                  className={`p-2.5 rounded-lg border text-left transition flex items-start gap-2 ${
+                    modoMochilaMO === 'sem_mochila'
+                      ? 'bg-slate-800 text-white border-slate-900 shadow-xs ring-2 ring-slate-400/40'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="modoMochilaMO"
+                    checked={modoMochilaMO === 'sem_mochila'}
+                    onChange={() => setModoMochilaMO('sem_mochila')}
+                    className="mt-0.5 pointer-events-none accent-slate-800"
+                  />
+                  <div>
+                    <p className="text-xs font-bold leading-tight">
+                      Sem Mochila
+                    </p>
+                    <p className={`text-[10px] mt-0.5 ${modoMochilaMO === 'sem_mochila' ? 'text-slate-200' : 'text-slate-500'}`}>
+                      Insere apenas o Salário Base puro
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'buscar' ? (
+            /* Search & Select Tab */
+            <div className="space-y-3">
+              {/* Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <span className="text-[11px] font-bold text-slate-500 mr-1 flex items-center gap-1">
+                  <Filter className="w-3 h-3" />
+                  Filtrar:
+                </span>
+                {(['Todos', 'Material', 'Mão de Obra', 'Equipamento', 'Terceirizado'] as const).map((tipo) => {
+                  const count =
+                    tipo === 'Todos'
+                      ? countTodos
+                      : tipo === 'Material'
+                      ? countMaterial
+                      : tipo === 'Mão de Obra'
+                      ? countMaoObra
+                      : tipo === 'Equipamento'
+                      ? countEquipamento
+                      : countTerceirizado;
+
+                  return (
+                    <button
+                      key={tipo}
+                      type="button"
+                      onClick={() => setFiltroTipo(tipo)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition whitespace-nowrap border ${
+                        filtroTipo === tipo
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {tipo} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Search input */}
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
@@ -319,52 +440,78 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
               </div>
 
               {/* Results List */}
-              <div className="space-y-1.5 max-h-[55vh] min-h-[280px] overflow-y-auto custom-scroll pr-1">
+              <div className="space-y-1.5 max-h-[50vh] min-h-[260px] overflow-y-auto custom-scroll pr-1">
                 {insumosFiltrados.length > 0 ? (
-                  insumosFiltrados.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => handleSelectAndInsert(item)}
-                      className="group flex items-center justify-between p-3 bg-white hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 rounded-xl transition cursor-pointer shadow-xs"
-                    >
-                      <div className="flex items-center gap-3 min-w-0 pr-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${getTipoBadgeStyle(item.tipo)}`}>
-                          {item.tipo}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-950 truncate">
-                            {item.descricao}
-                          </p>
-                          <p className="text-[10px] text-slate-400 flex items-center gap-2">
-                            <span>Cód: <strong className="text-slate-600 font-mono">{item.id_insumo || item.id}</strong></span>
-                            <span>•</span>
-                            <span>Unid: <strong className="text-slate-600 uppercase">{item.unid}</strong></span>
-                          </p>
-                        </div>
-                      </div>
+                  insumosFiltrados.map((item) => {
+                    const isMO = item.tipo === 'Mão de Obra';
+                    const hasMochila = isMO && custoHoraMochila > 0;
+                    const precoExibido =
+                      hasMochila && modoMochilaMO === 'incorporada'
+                        ? item.pr_unit + custoHoraMochila
+                        : item.pr_unit;
 
-                      <div className="flex items-center gap-3 shrink-0">
-                        <div className="text-right">
-                          <span className="text-xs font-extrabold text-slate-900 block font-mono">
-                            {formatMoney(item.pr_unit)}
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => handleSelectAndInsert(item)}
+                        className="group flex items-center justify-between p-3 bg-white hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 rounded-xl transition cursor-pointer shadow-xs"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 pr-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${getTipoBadgeStyle(item.tipo)}`}>
+                            {item.tipo}
                           </span>
-                          <span className="text-[10px] text-slate-400">/ {item.unid}</span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-950 truncate">
+                              {item.descricao}
+                            </p>
+                            <p className="text-[10px] text-slate-400 flex items-center gap-2">
+                              <span>Cód: <strong className="text-slate-600 font-mono">{item.id_insumo || item.id}</strong></span>
+                              <span>•</span>
+                              <span>Unid: <strong className="text-slate-600 uppercase">{item.unid}</strong></span>
+                              {hasMochila && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-amber-700 font-bold">
+                                    {modoMochilaMO === 'incorporada'
+                                      ? `Base ${formatMoney(item.pr_unit)} + Mochila ${formatMoney(custoHoraMochila)}`
+                                      : modoMochilaMO === 'separada'
+                                      ? `MO ${formatMoney(item.pr_unit)} + Linha Mochila separada`
+                                      : `Sem mochila`}
+                                  </span>
+                                </>
+                              )}
+                            </p>
+                          </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSelectAndInsert(item);
-                          }}
-                          className="bg-indigo-600 group-hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Inserir</span>
-                        </button>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <span className="text-xs font-extrabold text-slate-900 block font-mono">
+                              {formatMoney(precoExibido)}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              / {item.unid}
+                              {hasMochila && modoMochilaMO === 'incorporada' && (
+                                <span className="text-amber-700 font-bold ml-1">(c/ Mochila)</span>
+                              )}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectAndInsert(item);
+                            }}
+                            className="bg-indigo-600 group-hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Inserir</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="text-center py-8 px-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl space-y-3">
                     <p className="text-xs text-slate-600 font-medium">

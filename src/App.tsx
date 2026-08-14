@@ -274,9 +274,10 @@ export default function App() {
     }
   };
 
-  const handleAddInsumoToActiveCpu = (newInsumo: Insumo) => {
+  const handleAddInsumoToActiveCpu = (newInsumos: Insumo | Insumo[]) => {
     if (!activeCpu) return;
-    const updatedInsumos = [...(activeCpu.insumos || []), newInsumo];
+    const itemsToAdd = Array.isArray(newInsumos) ? newInsumos : [newInsumos];
+    const updatedInsumos = [...(activeCpu.insumos || []), ...itemsToAdd];
     const updatedCpu: CPU = {
       ...activeCpu,
       insumos: updatedInsumos
@@ -462,6 +463,7 @@ export default function App() {
       <ModalInsumo
         isOpen={isModalInsumoOpen}
         bancoInsumos={bancoInsumos}
+        activeObra={activeObra}
         onClose={() => setIsModalInsumoOpen(false)}
         onAddInsumoToCpu={handleAddInsumoToActiveCpu}
         onCadastrarNovoInsumo={(novoBase) =>

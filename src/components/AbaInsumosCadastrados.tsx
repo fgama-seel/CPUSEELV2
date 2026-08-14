@@ -10,12 +10,17 @@ import {
   X,
   Filter,
   Save,
-  AlertTriangle
+  AlertTriangle,
+  Briefcase,
+  Sparkles,
+  Info
 } from 'lucide-react';
 import { InsumoBase, TipoInsumo, Obra } from '../types';
 import { formatMoney } from '../lib/excelExport';
 import { saveInsumoBase, deleteInsumoBase, createInsumoBase, updateInsumoCascadeToCPUs } from '../services/dbService';
 import { ModalImportarInsumos } from './ModalImportarInsumos';
+import { ModalConfigMochilaMO } from './ModalConfigMochilaMO';
+import { HORAS_MES_PADRAO, calcularMochila } from '../lib/mochilaDefaults';
 
 interface AbaInsumosCadastradosProps {
   bancoInsumos: InsumoBase[];
@@ -40,6 +45,8 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
   const [filterText, setFilterText] = useState('');
   const [filterTipo, setFilterTipo] = useState<'Todos' | TipoInsumo>('Todos');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showMochilaModal, setShowMochilaModal] = useState(false);
+  const [selectedMochilaInsumoId, setSelectedMochilaInsumoId] = useState<string | null>(null);
   
   // New Insumo Modal/Form State
   const [showNewModal, setShowNewModal] = useState(false);
@@ -61,6 +68,12 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
 
   // Feedback Banner State
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+
+  // Mochila calculations for active obra
+  const mochilaConfig = activeObra?.mochilaMO;
+  const { totalMensal: mochilaTotalMensal, custoHoraMochila } = mochilaConfig?.itens
+    ? calcularMochila(mochilaConfig.itens, mochilaConfig.horasMesPadrao || HORAS_MES_PADRAO)
+    : { totalMensal: 0, custoHoraMochila: 0 };
 
   // Filter logic
   const filtered = bancoInsumos.filter((item) => {
@@ -484,12 +497,54 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
                           </span>
                         </td>
 
-                        <td className="p-3 text-right font-mono font-extrabold text-slate-900">
-                          {formatMoney(item.pr_unit)}
+                        <td className="p-3 text-right">
+                          <span className="font-mono font-extrabold text-slate-900 block text-xs">
+                            {formatMoney(item.pr_unit)}
+                          </span>
+                          {item.tipo === 'Mão de Obra' && (
+                            (() => {
+                              const mochilaMO = activeObra?.mochilasMO?.[item.id || item.id_insumo];
+                              const custoMochilaItem = mochilaMO?.custoHoraMochila !== undefined ? mochilaMO.custoHoraMochila : custoHoraMochila;
+                              const totalComMochila = mochilaMO?.salarioEncargoMochilaHora !== undefined ? mochilaMO.salarioEncargoMochilaHora : item.pr_unit + custoMochilaItem;
+
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedMochilaInsumoId(item.id);
+                                    setShowMochilaModal(true);
+                                  }}
+                                  className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold mt-1 transition cursor-pointer border ${
+                                    mochilaMO
+                                      ? 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border-emerald-300'
+                                      : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border-amber-200'
+                                  }`}
+                                  title={`Configurar Mochila & Encargos para ${item.descricao} | Mochila: +${formatMoney(custoMochilaItem)}/h | Total c/ Mochila: ${formatMoney(totalComMochila)}/h`}
+                                >
+                                  <Briefcase className="w-2.5 h-2.5 shrink-0 text-amber-600" />
+                                  <span>{mochilaMO ? `🎒 +${formatMoney(custoMochilaItem)}/h` : '🎒 Configurar Mochila'}</span>
+                                </button>
+                              );
+                            })()
+                          )}
                         </td>
 
                         <td className="p-3 text-center">
                           <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100 transition">
+                            {item.tipo === 'Mão de Obra' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedMochilaInsumoId(item.id);
+                                  setShowMochilaModal(true);
+                                }}
+                                className="text-amber-600 hover:bg-amber-50 p-1.5 rounded-lg transition"
+                                title="Configurar Mochila & Encargos desta Mão de Obra"
+                              >
+                                <Briefcase className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => handleStartEdit(item)}
@@ -681,6 +736,21 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
         activeObra={activeObra}
         onClose={() => setShowImportModal(false)}
         onImportSuccess={() => {
+          if (onRefresh) onRefresh();
+        }}
+      />
+
+      {/* MODAL: CONFIGURAÇÃO DA MOCHILA DE MÃO DE OBRA */}
+      <ModalConfigMochilaMO
+        isOpen={showMochilaModal}
+        activeObra={activeObra}
+        bancoInsumos={bancoInsumos}
+        initialInsumoId={selectedMochilaInsumoId}
+        onClose={() => {
+          setShowMochilaModal(false);
+          setSelectedMochilaInsumoId(null);
+        }}
+        onSaved={() => {
           if (onRefresh) onRefresh();
         }}
       />

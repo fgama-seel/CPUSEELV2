@@ -1,12 +1,80 @@
 export type TipoInsumo = 'Material' | 'Mão de Obra' | 'Equipamento' | 'Terceirizado';
 
+export interface AdicionaisMO {
+  dissidio?: number; // Dissídio (R$/h)
+  ajudaDeCusto?: number; // Ajuda de custo (R$/h)
+  horaExtra?: number; // Hora Extra (R$/h)
+  adicionalNoturno?: number; // Adicional Noturno (R$/h)
+  periculosidade?: number; // Periculosidade (R$/h)
+  insalubridade?: number; // Insalubridade (R$/h)
+}
+
+export interface ItemMochila {
+  id: string;
+  seq: number;
+  categoria?: 'ALIMENTAÇÃO' | 'TRANSPORTE' | 'UNIFORMES / EPI' | 'ASSISTÊNCIA' | 'ALOJAMENTO' | 'OUTROS' | string;
+  descricao: string;
+  custo_unit: number;
+  unid: string;
+  quantidade?: number;
+  total: number;
+}
+
+export interface MochilaMOInsumo {
+  insumoId: string; // ID ou id_insumo do InsumoBase
+  insumoCodigo?: string;
+  insumoDescricao?: string;
+  unidadeBase?: string; // "/mês" ou "h"
+  salarioMes?: number; // PrUn. (Salário/mês) ex: 25.000,00
+  salarioHora?: number; // PrUn (Salário/h) ex: 132,14
+  adicionais?: AdicionaisMO;
+  encargoPerc?: number; // % Encargos Sociais ex: 75.0%
+  horasMes?: number; // Horas/mês divisor ex: 189.2
+  itens: ItemMochila[];
+  // Valores calculados
+  prUnBaseSalarioHora?: number; // Salário/h + adicionais
+  salarioComEncargoHora?: number; // prUnBaseSalarioHora * (1 + encargoPerc/100)
+  totalMensalMochila?: number; // Soma dos itens da mochila
+  custoHoraMochila?: number; // totalMensalMochila / horasMes
+  salarioEncargoMochilaHora?: number; // salarioComEncargoHora + custoHoraMochila
+  atualizadoEm?: string;
+  atualizadoPor?: string;
+}
+
+export interface ConfigEncargosObra {
+  horasMesPadrao: number; // Padrão: 189.2h
+  percentualEncargoPadrao: number; // Padrão: 75.0%
+  detalhesGrupos?: {
+    grupoA?: number; // ex: 16.80% (INSS, FGTS, SESI, SENAI, Sebrae, INCRA)
+    grupoB?: number; // ex: 48.20% (Férias, 13º Salário, Repouso Remunerado)
+    grupoC?: number; // ex: 4.50% (Aviso Prévio Indenizado, FGTS Rescisão)
+    grupoD?: number; // ex: 5.50% (Incidências Cumulativas)
+  };
+}
+
+export interface MochilaMOConfig {
+  horasMesPadrao: number; // Padrão: 189.2h
+  percentualEncargoPadrao?: number; // Padrão: 75.0%
+  itens: ItemMochila[];
+  totalMensal: number;
+  custoHoraMochila: number; // totalMensal / horasMesPadrao (R$/h)
+  atualizadoEm?: string;
+  atualizadoPor?: string;
+}
+
 export interface Insumo {
+  id?: string;
   id_insumo: string;
   tipo: TipoInsumo;
   descricao: string;
   unid: string;
   coef: number;
   pr_unit: number;
+  mochilaIncorporada?: boolean;
+  custoMochilaUnit?: number;
+  precoBaseMO?: number;
+  isMochilaAvulsa?: boolean;
+  isMochilaSeparada?: boolean;
 }
 
 export interface InsumoBase {
@@ -79,6 +147,9 @@ export interface Obra {
   };
   orcamentoOriginal: OrcamentoOriginal;
   emailsAcesso?: string[];
+  mochilaMO?: MochilaMOConfig;
+  mochilasMO?: Record<string, MochilaMOInsumo>; // mochilas específicas por insumo ID
+  configEncargos?: ConfigEncargosObra;
   createdAt?: string;
 }
 

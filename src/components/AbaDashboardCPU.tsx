@@ -15,10 +15,14 @@ import {
   RefreshCw,
   Info,
   Edit3,
-  X
+  X,
+  Backpack,
+  Layers,
+  Sparkles
 } from 'lucide-react';
 import { CPU, Insumo, Obra, Comentario } from '../types';
 import { formatMoney, exportarFichaCPU } from '../lib/excelExport';
+import { calcularMochila } from '../lib/mochilaDefaults';
 import { ModalConfirmarExclusaoCPU } from './ModalConfirmarExclusaoCPU';
 
 interface AbaDashboardCPUProps {
@@ -198,6 +202,91 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
       ...localCpu,
       insumos: updatedInsumos
     };
+    setLocalCpu(updatedCpu);
+    onRegisterPendingChange(updatedCpu);
+  };
+
+  const calcMochila = calcularMochila(activeObra?.mochilaMO);
+  const custoHoraMochila = calcMochila.custoHoraMochila;
+
+  // Toggle Mochila Incorporada on a Labor item
+  const handleToggleIncorporarMochila = (index: number) => {
+    const item = localCpu.insumos[index];
+    if (!item || item.tipo !== 'Mão de Obra') return;
+
+    const specificMochila = activeObra?.mochilasMO?.[item.id_insumo || item.id || ''];
+    const custoMochilaEfetivo = specificMochila?.custoHoraMochila !== undefined ? specificMochila.custoHoraMochila : (item.custoMochilaUnit || custoHoraMochila);
+
+    const updatedInsumos = [...localCpu.insumos];
+    if (item.mochilaIncorporada) {
+      // Revert to base price
+      const basePrice = item.precoBaseMO !== undefined ? item.precoBaseMO : Math.max(0, (Number(item.pr_unit) || 0) - custoMochilaEfetivo);
+      const cleanDesc = item.descricao.replace(/\s*\(c\/\s*Mochila\)/gi, '');
+      updatedInsumos[index] = {
+        ...item,
+        descricao: cleanDesc,
+        pr_unit: Number(basePrice.toFixed(2)),
+        mochilaIncorporada: false,
+        custoMochilaUnit: undefined,
+        precoBaseMO: undefined
+      };
+    } else {
+      // Incorporate Mochila
+      const basePrice = Number(item.pr_unit) || 0;
+      const finalPrice = basePrice + custoMochilaEfetivo;
+      const cleanDesc = item.descricao.replace(/\s*\(c\/\s*Mochila\)/gi, '');
+      updatedInsumos[index] = {
+        ...item,
+        descricao: `${cleanDesc} (c/ Mochila)`,
+        pr_unit: Number(finalPrice.toFixed(2)),
+        mochilaIncorporada: true,
+        custoMochilaUnit: custoMochilaEfetivo,
+        precoBaseMO: basePrice
+      };
+    }
+
+    const updatedCpu: CPU = { ...localCpu, insumos: updatedInsumos };
+    setLocalCpu(updatedCpu);
+    onRegisterPendingChange(updatedCpu);
+  };
+
+  // Desmembrar Mochila: transforma a linha de MO incorporada em 2 linhas (MO base + Linha separada de Mochila)
+  const handleSplitMochilaToTwoRows = (index: number) => {
+    const item = localCpu.insumos[index];
+    if (!item || item.tipo !== 'Mão de Obra') return;
+
+    const specificMochila = activeObra?.mochilasMO?.[item.id_insumo || item.id || ''];
+    const custoMochilaEfetivo = specificMochila?.custoHoraMochila !== undefined ? specificMochila.custoHoraMochila : (item.custoMochilaUnit || custoHoraMochila);
+
+    const basePrice = item.precoBaseMO !== undefined ? item.precoBaseMO : Math.max(0, (Number(item.pr_unit) || 0) - custoMochilaEfetivo);
+    const mochilaPrice = custoMochilaEfetivo;
+    const cleanDesc = item.descricao.replace(/\s*\(c\/\s*Mochila\)/gi, '');
+
+    const baseItem: Insumo = {
+      ...item,
+      descricao: cleanDesc,
+      pr_unit: Number(basePrice.toFixed(2)),
+      mochilaIncorporada: false,
+      custoMochilaUnit: undefined,
+      precoBaseMO: undefined
+    };
+
+    const mochilaItem: Insumo = {
+      id: `mochila_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      id_insumo: 'MOCHILA-MO',
+      tipo: 'Mão de Obra',
+      descricao: `[MOCHILA] Encargos e Benefícios - ${cleanDesc}`,
+      unid: item.unid || 'h',
+      coef: item.coef || 1,
+      pr_unit: Number(mochilaPrice.toFixed(2)),
+      isMochilaSeparada: true,
+      custoMochilaUnit: mochilaPrice
+    };
+
+    const updatedInsumos = [...localCpu.insumos];
+    updatedInsumos.splice(index, 1, baseItem, mochilaItem);
+
+    const updatedCpu: CPU = { ...localCpu, insumos: updatedInsumos };
     setLocalCpu(updatedCpu);
     onRegisterPendingChange(updatedCpu);
   };
@@ -639,6 +728,53 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
                             onChange={(e) => handleUpdateInsumo(index, 'descricao', e.target.value)}
                             className="w-full bg-transparent focus:border-b border-indigo-500 outline-none text-slate-800 font-medium"
                           />
+                          {/* Mochila Badges & Quick Actions for Labor */}
+                          {ins.tipo === 'Mão de Obra' && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {ins.mochilaIncorporada ? (
+                                <>
+                                  <span className="inline-flex items-center gap-1 bg-amber-100/90 text-amber-900 border border-amber-300/80 px-2 py-0.5 rounded-md text-[10px] font-bold">
+                                    <Backpack className="w-3 h-3 text-amber-700" />
+                                    <span>Mochila Inc. (+{formatMoney(ins.custoMochilaUnit || custoHoraMochila)}/h)</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSplitMochilaToTwoRows(index)}
+                                    className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-1.5 py-0.5 rounded transition flex items-center gap-1"
+                                    title="Desmembrar em duas linhas: Salário Base e Mochila separada"
+                                  >
+                                    <Layers className="w-3 h-3 text-indigo-600" />
+                                    <span>Desmembrar em 2 linhas</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleIncorporarMochila(index)}
+                                    className="text-[10px] font-bold text-slate-500 hover:text-red-700 bg-slate-100 hover:bg-red-50 border border-slate-200 px-1.5 py-0.5 rounded transition"
+                                    title="Remover valor da mochila desta linha"
+                                  >
+                                    Remover Mochila
+                                  </button>
+                                </>
+                              ) : ins.isMochilaSeparada ? (
+                                <span className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-900 border border-indigo-300 px-2 py-0.5 rounded-md text-[10px] font-bold">
+                                  <Backpack className="w-3 h-3 text-indigo-700" />
+                                  <span>Linha Destacada de Mochila MO</span>
+                                </span>
+                              ) : (
+                                custoHoraMochila > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleIncorporarMochila(index)}
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md transition"
+                                    title="Incorporar valor da Mochila (+R$ {formatMoney(custoHoraMochila)}/h) nesta linha"
+                                  >
+                                    <Sparkles className="w-3 h-3 text-amber-600" />
+                                    <span>+ Incorporar Mochila ({formatMoney(custoHoraMochila)}/h)</span>
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          )}
                         </td>
 
                         {/* Unidade */}
