@@ -23,6 +23,7 @@ import {
   removePendingCPUFromCache,
   clearAllPendingCPUsFromCache
 } from './lib/pendingCache';
+import { ordenarInsumosCPU } from './lib/mochilaDefaults';
 
 // Components
 import { Header } from './components/Header';
@@ -277,7 +278,7 @@ export default function App() {
   const handleAddInsumoToActiveCpu = (newInsumos: Insumo | Insumo[]) => {
     if (!activeCpu) return;
     const itemsToAdd = Array.isArray(newInsumos) ? newInsumos : [newInsumos];
-    const updatedInsumos = [...(activeCpu.insumos || []), ...itemsToAdd];
+    const updatedInsumos = ordenarInsumosCPU([...(activeCpu.insumos || []), ...itemsToAdd]);
     const updatedCpu: CPU = {
       ...activeCpu,
       insumos: updatedInsumos

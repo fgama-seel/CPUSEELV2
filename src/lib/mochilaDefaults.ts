@@ -352,3 +352,51 @@ export function clonarMochilaParaInsumo(
   return calcularMochilaInsumo(baseMochila);
 }
 
+/**
+ * Retorna a precedência numérica de ordenação dos tipos de insumos nas CPUs SEEL:
+ * 1. Mão de Obra
+ * 2. Equipamentos
+ * 3. Materiais
+ * 4. Serviços (Terceirizados)
+ */
+export function getTipoInsumoOrder(tipo: string | undefined): number {
+  if (!tipo) return 99;
+  const t = tipo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  // 1º Mão de Obra
+  if (t.includes('mao') || t.includes('obra') || t === 'mo') {
+    return 1;
+  }
+  // 2º Equipamentos
+  if (t.includes('equip') || t === 'eq') {
+    return 2;
+  }
+  // 3º Materiais
+  if (t.includes('mater') || t === 'mat') {
+    return 3;
+  }
+  // 4º Serviços / Terceirizados
+  if (t.includes('serv') || t.includes('terc') || t.includes('sub')) {
+    return 4;
+  }
+
+  return 5;
+}
+
+/**
+ * Organiza a lista de insumos de uma CPU garantindo que os itens fiquem agrupados
+ * estritamente na sequência: Mão de Obra > Equipamentos > Materiais > Serviços.
+ */
+export function ordenarInsumosCPU<T extends { tipo?: any }>(insumos: T[]): T[] {
+  if (!insumos || !Array.isArray(insumos)) return [];
+  return [...insumos].sort((a, b) => {
+    const orderA = getTipoInsumoOrder(a.tipo);
+    const orderB = getTipoInsumoOrder(b.tipo);
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    return 0; // mantém a ordem relativa para itens do mesmo tipo
+  });
+}
+
+

@@ -13,7 +13,7 @@ import {
   Sparkles,
   Info
 } from 'lucide-react';
-import { InsumoBase, Insumo, TipoInsumo, Obra } from '../types';
+import { InsumoBase, Insumo, TipoInsumo, Obra, MochilaMOInsumo } from '../types';
 import { formatMoney } from '../lib/excelExport';
 import { HORAS_MES_PADRAO, calcularMochila } from '../lib/mochilaDefaults';
 
@@ -97,35 +97,58 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
   const countTerceirizado = bancoInsumos.filter((i) => i.tipo === 'Terceirizado').length;
 
   const handleSelectAndInsert = (base: InsumoBase) => {
-    const mochilaItem = activeObra?.mochilasMO?.[base.id || base.id_insumo];
+    const cleanBaseDesc = (base.descricao || '').trim().toLowerCase();
+    const mochilaItem = activeObra?.mochilasMO?.[base.id || base.id_insumo || '']
+      || (Object.values(activeObra?.mochilasMO || {}) as MochilaMOInsumo[]).find((m: MochilaMOInsumo) => {
+        const codMatch = m.insumoCodigo && (base.id_insumo || '').toLowerCase() === m.insumoCodigo.toLowerCase();
+        const descMatch = m.insumoDescricao && m.insumoDescricao.trim().toLowerCase() === cleanBaseDesc;
+        const idMatch = m.insumoId && (m.insumoId === base.id || m.insumoId === base.id_insumo);
+        return Boolean(codMatch || descMatch || idMatch);
+      });
+
     const custoMochilaEfetivo = mochilaItem?.custoHoraMochila !== undefined ? mochilaItem.custoHoraMochila : custoHoraMochila;
 
-    if (base.tipo === 'Mão de Obra' && custoMochilaEfetivo > 0) {
+    if (base.tipo === 'Mão de Obra' && (custoMochilaEfetivo > 0 || mochilaItem)) {
       if (modoMochilaMO === 'incorporada') {
-        const precoBase = Number(base.pr_unit) || 0;
-        const precoFinal = Number((precoBase + custoMochilaEfetivo).toFixed(4));
+        let precoFinal: number;
+        let precoBase: number;
+
+        if (mochilaItem?.salarioEncargoMochilaHora !== undefined) {
+          precoFinal = mochilaItem.salarioEncargoMochilaHora;
+          precoBase = mochilaItem.salarioComEncargoHora !== undefined
+            ? mochilaItem.salarioComEncargoHora
+            : Math.max(0, precoFinal - custoMochilaEfetivo);
+        } else {
+          precoBase = Number(base.pr_unit) || 0;
+          precoFinal = Number((precoBase + custoMochilaEfetivo).toFixed(4));
+        }
+
         const insumo: Insumo = {
           id_insumo: base.id_insumo || base.id,
           tipo: base.tipo,
           descricao: `${base.descricao} (c/ Mochila)`,
           unid: base.unid,
           coef: 1.0,
-          pr_unit: precoFinal,
+          pr_unit: Number(precoFinal.toFixed(4)),
           mochilaIncorporada: true,
           custoMochilaUnit: custoMochilaEfetivo,
-          precoBaseMO: precoBase
+          precoBaseMO: Number(precoBase.toFixed(4))
         };
         onAddInsumoToCpu(insumo);
       } else if (modoMochilaMO === 'separada') {
+        const precoBase = mochilaItem?.salarioComEncargoHora !== undefined
+          ? mochilaItem.salarioComEncargoHora
+          : Number(base.pr_unit) || 0;
+
         const insumoMO: Insumo = {
           id_insumo: base.id_insumo || base.id,
           tipo: base.tipo,
           descricao: base.descricao,
           unid: base.unid,
           coef: 1.0,
-          pr_unit: base.pr_unit,
+          pr_unit: Number(precoBase.toFixed(4)),
           mochilaIncorporada: false,
-          precoBaseMO: base.pr_unit
+          precoBaseMO: Number(precoBase.toFixed(4))
         };
         const insumoMochila: Insumo = {
           id_insumo: `MOCH_${base.id_insumo || base.id}`,
@@ -133,22 +156,26 @@ export const ModalInsumo: React.FC<ModalInsumoProps> = ({
           descricao: `[MOCHILA] Encargos e Benefícios - ${base.descricao}`,
           unid: 'h',
           coef: 1.0,
-          pr_unit: custoMochilaEfetivo,
+          pr_unit: Number(custoMochilaEfetivo.toFixed(4)),
           isMochilaAvulsa: true,
           custoMochilaUnit: custoMochilaEfetivo
         };
         onAddInsumoToCpu([insumoMO, insumoMochila]);
       } else {
         // sem_mochila
+        const precoBase = mochilaItem?.salarioComEncargoHora !== undefined
+          ? mochilaItem.salarioComEncargoHora
+          : Number(base.pr_unit) || 0;
+
         const insumo: Insumo = {
           id_insumo: base.id_insumo || base.id,
           tipo: base.tipo,
           descricao: base.descricao,
           unid: base.unid,
           coef: 1.0,
-          pr_unit: base.pr_unit,
+          pr_unit: Number(precoBase.toFixed(4)),
           mochilaIncorporada: false,
-          precoBaseMO: base.pr_unit
+          precoBaseMO: Number(precoBase.toFixed(4))
         };
         onAddInsumoToCpu(insumo);
       }

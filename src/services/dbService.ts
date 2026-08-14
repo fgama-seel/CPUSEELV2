@@ -10,6 +10,7 @@ import { db, auth } from '../lib/firebase';
 import { Obra, CPU, InsumoBase, UserPermission, Insumo, Comentario } from '../types';
 import { getPendingCPUs, savePendingCPUToCache } from '../lib/pendingCache';
 import { firestoreTracker } from './firestoreTracker';
+import { ordenarInsumosCPU } from '../lib/mochilaDefaults';
 
 export enum OperationType {
   CREATE = 'create',
@@ -86,7 +87,11 @@ export function subscribeCPUs(obraId: string | null, callback: (cpus: CPU[]) => 
     snapshot.forEach((docSnap) => {
       const data = docSnap.data() as Omit<CPU, 'id'>;
       if (!obraId || data.obraId === obraId) {
-        list.push({ id: docSnap.id, ...data });
+        list.push({
+          id: docSnap.id,
+          ...data,
+          insumos: ordenarInsumosCPU(data.insumos || [])
+        });
       }
     });
     firestoreTracker.logOperation('SNAPSHOT', 'cpus', snapshot.size, `Sincronização em tempo real de CPUs (${snapshot.size} docs)`);
@@ -144,6 +149,7 @@ export async function saveCPU(cpu: CPU): Promise<void> {
     const docRef = doc(db, 'cpus', cpu.id);
     const dataToSave = {
       ...cpu,
+      insumos: ordenarInsumosCPU(cpu.insumos || []),
       updatedAt: new Date().toISOString()
     };
     await setDoc(docRef, dataToSave, { merge: true });
@@ -163,6 +169,7 @@ export async function createCPU(cpuData: Omit<CPU, 'id'>): Promise<string> {
     const docRef = doc(colRef, customId);
     await setDoc(docRef, {
       ...cpuData,
+      insumos: ordenarInsumosCPU(cpuData.insumos || []),
       id: customId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -288,10 +295,15 @@ export async function updateInsumoCascadeToCPUs(
 
         if (isMatchByCode || isMatchByDesc) {
           cpuModified = true;
+          const isMochilaInc = Boolean(item.mochilaIncorporada);
+          const finalDesc = isMochilaInc && !insumo.descricao.includes('(c/ Mochila)')
+            ? `${insumo.descricao} (c/ Mochila)`
+            : insumo.descricao;
+
           return {
             ...item,
             id_insumo: insumo.id_insumo || insumo.id,
-            descricao: insumo.descricao,
+            descricao: finalDesc,
             unid: insumo.unid,
             pr_unit: insumo.pr_unit,
             tipo: insumo.tipo
@@ -304,7 +316,7 @@ export async function updateInsumoCascadeToCPUs(
         updatedCpusCount++;
         const updatedCpu: CPU = {
           ...cpu,
-          insumos: updatedInsumos,
+          insumos: ordenarInsumosCPU(updatedInsumos),
           updatedAt: new Date().toISOString()
         };
         await saveCPU(updatedCpu);

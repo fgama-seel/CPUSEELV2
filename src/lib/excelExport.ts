@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { CPU, Obra, ABCInsumoItem, MochilaMOInsumo, InsumoBase, ItemMochila } from '../types';
+import { ordenarInsumosCPU } from './mochilaDefaults';
 
 export function formatMoney(val: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -168,7 +169,8 @@ export function exportarFichaCPU(cpu: CPU, obra?: Obra) {
   const dadosInsumos: any[] = [];
 
   if (cpu.insumos) {
-    cpu.insumos.forEach((ins) => {
+    const insumosOrdenados = ordenarInsumosCPU(cpu.insumos);
+    insumosOrdenados.forEach((ins) => {
       const coef = Number(ins.coef) || 0;
       const pr_unit = Number(ins.pr_unit) || 0;
       const total = coef * pr_unit;
@@ -259,7 +261,8 @@ export function exportarComposicoes(cpus: CPU[], obra?: Obra) {
   const dadosExcel: any[] = [];
   cpus.forEach((cpu) => {
     if (cpu.insumos && cpu.insumos.length > 0) {
-      cpu.insumos.forEach((ins) => {
+      const insumosOrdenados = ordenarInsumosCPU(cpu.insumos);
+      insumosOrdenados.forEach((ins) => {
         dadosExcel.push({
           'ID CPU': cpu.code,
           'Nome CPU': cpu.nome,

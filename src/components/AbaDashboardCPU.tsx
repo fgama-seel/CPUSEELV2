@@ -20,9 +20,9 @@ import {
   Layers,
   Sparkles
 } from 'lucide-react';
-import { CPU, Insumo, Obra, Comentario } from '../types';
+import { CPU, Insumo, Obra, Comentario, MochilaMOInsumo } from '../types';
 import { formatMoney, exportarFichaCPU } from '../lib/excelExport';
-import { calcularMochila } from '../lib/mochilaDefaults';
+import { calcularMochila, ordenarInsumosCPU } from '../lib/mochilaDefaults';
 import { ModalConfirmarExclusaoCPU } from './ModalConfirmarExclusaoCPU';
 
 interface AbaDashboardCPUProps {
@@ -60,7 +60,10 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
 
   // Sync state when cpu prop changes
   useEffect(() => {
-    setLocalCpu(cpu);
+    setLocalCpu({
+      ...cpu,
+      insumos: ordenarInsumosCPU(cpu.insumos || [])
+    });
     setEditHeaderForm({
       code: cpu.code,
       nome: cpu.nome,
@@ -181,11 +184,15 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     field: keyof Insumo,
     value: string | number
   ) => {
-    const updatedInsumos = [...localCpu.insumos];
+    let updatedInsumos = [...localCpu.insumos];
     updatedInsumos[index] = {
       ...updatedInsumos[index],
       [field]: field === 'descricao' || field === 'unid' ? value : Number(value) || 0
     };
+
+    if (field === 'tipo') {
+      updatedInsumos = ordenarInsumosCPU(updatedInsumos);
+    }
 
     const updatedCpu: CPU = {
       ...localCpu,
@@ -214,34 +221,64 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     const item = localCpu.insumos[index];
     if (!item || item.tipo !== 'Mão de Obra') return;
 
-    const specificMochila = activeObra?.mochilasMO?.[item.id_insumo || item.id || ''];
-    const custoMochilaEfetivo = specificMochila?.custoHoraMochila !== undefined ? specificMochila.custoHoraMochila : (item.custoMochilaUnit || custoHoraMochila);
+    const cleanItemDesc = item.descricao.replace(/\s*\(c\/\s*Mochila\)/gi, '').trim().toLowerCase();
+    const specificMochila = activeObra?.mochilasMO?.[item.id_insumo || item.id || '']
+      || (Object.values(activeObra?.mochilasMO || {}) as MochilaMOInsumo[]).find((m: MochilaMOInsumo) => {
+        const codMatch = m.insumoCodigo && (item.id_insumo || '').toLowerCase() === m.insumoCodigo.toLowerCase();
+        const descMatch = m.insumoDescricao && m.insumoDescricao.trim().toLowerCase() === cleanItemDesc;
+        const idMatch = m.insumoId && (m.insumoId === item.id || m.insumoId === item.id_insumo);
+        return Boolean(codMatch || descMatch || idMatch);
+      });
+
+    const custoMochilaEfetivo = specificMochila?.custoHoraMochila !== undefined 
+      ? specificMochila.custoHoraMochila 
+      : (item.custoMochilaUnit || custoHoraMochila);
 
     const updatedInsumos = [...localCpu.insumos];
     if (item.mochilaIncorporada) {
-      // Revert to base price
-      const basePrice = item.precoBaseMO !== undefined ? item.precoBaseMO : Math.max(0, (Number(item.pr_unit) || 0) - custoMochilaEfetivo);
+      // Revert to base price (Salário + Adicionais + Encargos, sem Mochila)
+      let basePrice: number;
+      if (specificMochila?.salarioComEncargoHora !== undefined) {
+        basePrice = specificMochila.salarioComEncargoHora;
+      } else if (item.precoBaseMO !== undefined) {
+        basePrice = item.precoBaseMO;
+      } else {
+        basePrice = Math.max(0, (Number(item.pr_unit) || 0) - custoMochilaEfetivo);
+      }
+
       const cleanDesc = item.descricao.replace(/\s*\(c\/\s*Mochila\)/gi, '');
       updatedInsumos[index] = {
         ...item,
         descricao: cleanDesc,
-        pr_unit: Number(basePrice.toFixed(2)),
+        pr_unit: Number(basePrice.toFixed(4)),
         mochilaIncorporada: false,
         custoMochilaUnit: undefined,
         precoBaseMO: undefined
       };
     } else {
       // Incorporate Mochila
-      const basePrice = Number(item.pr_unit) || 0;
-      const finalPrice = basePrice + custoMochilaEfetivo;
+      // Se houver specificMochila, o valor final com mochila é exatamente o Total Final / Hora (salarioEncargoMochilaHora)
+      let finalPrice: number;
+      let basePrice: number;
+
+      if (specificMochila?.salarioEncargoMochilaHora !== undefined) {
+        finalPrice = specificMochila.salarioEncargoMochilaHora;
+        basePrice = specificMochila.salarioComEncargoHora !== undefined
+          ? specificMochila.salarioComEncargoHora
+          : Math.max(0, finalPrice - custoMochilaEfetivo);
+      } else {
+        basePrice = item.precoBaseMO !== undefined ? item.precoBaseMO : (Number(item.pr_unit) || 0);
+        finalPrice = basePrice + custoMochilaEfetivo;
+      }
+
       const cleanDesc = item.descricao.replace(/\s*\(c\/\s*Mochila\)/gi, '');
       updatedInsumos[index] = {
         ...item,
         descricao: `${cleanDesc} (c/ Mochila)`,
-        pr_unit: Number(finalPrice.toFixed(2)),
+        pr_unit: Number(finalPrice.toFixed(4)),
         mochilaIncorporada: true,
         custoMochilaUnit: custoMochilaEfetivo,
-        precoBaseMO: basePrice
+        precoBaseMO: Number(basePrice.toFixed(4))
       };
     }
 
@@ -255,17 +292,35 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     const item = localCpu.insumos[index];
     if (!item || item.tipo !== 'Mão de Obra') return;
 
-    const specificMochila = activeObra?.mochilasMO?.[item.id_insumo || item.id || ''];
-    const custoMochilaEfetivo = specificMochila?.custoHoraMochila !== undefined ? specificMochila.custoHoraMochila : (item.custoMochilaUnit || custoHoraMochila);
+    const cleanItemDesc = item.descricao.replace(/\s*\(c\/\s*Mochila\)/gi, '').trim().toLowerCase();
+    const specificMochila = activeObra?.mochilasMO?.[item.id_insumo || item.id || '']
+      || (Object.values(activeObra?.mochilasMO || {}) as MochilaMOInsumo[]).find((m: MochilaMOInsumo) => {
+        const codMatch = m.insumoCodigo && (item.id_insumo || '').toLowerCase() === m.insumoCodigo.toLowerCase();
+        const descMatch = m.insumoDescricao && m.insumoDescricao.trim().toLowerCase() === cleanItemDesc;
+        const idMatch = m.insumoId && (m.insumoId === item.id || m.insumoId === item.id_insumo);
+        return Boolean(codMatch || descMatch || idMatch);
+      });
 
-    const basePrice = item.precoBaseMO !== undefined ? item.precoBaseMO : Math.max(0, (Number(item.pr_unit) || 0) - custoMochilaEfetivo);
+    const custoMochilaEfetivo = specificMochila?.custoHoraMochila !== undefined 
+      ? specificMochila.custoHoraMochila 
+      : (item.custoMochilaUnit || custoHoraMochila);
+
+    let basePrice: number;
+    if (specificMochila?.salarioComEncargoHora !== undefined) {
+      basePrice = specificMochila.salarioComEncargoHora;
+    } else if (item.precoBaseMO !== undefined) {
+      basePrice = item.precoBaseMO;
+    } else {
+      basePrice = Math.max(0, (Number(item.pr_unit) || 0) - custoMochilaEfetivo);
+    }
+
     const mochilaPrice = custoMochilaEfetivo;
     const cleanDesc = item.descricao.replace(/\s*\(c\/\s*Mochila\)/gi, '');
 
     const baseItem: Insumo = {
       ...item,
       descricao: cleanDesc,
-      pr_unit: Number(basePrice.toFixed(2)),
+      pr_unit: Number(basePrice.toFixed(4)),
       mochilaIncorporada: false,
       custoMochilaUnit: undefined,
       precoBaseMO: undefined
@@ -278,7 +333,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
       descricao: `[MOCHILA] Encargos e Benefícios - ${cleanDesc}`,
       unid: item.unid || 'h',
       coef: item.coef || 1,
-      pr_unit: Number(mochilaPrice.toFixed(2)),
+      pr_unit: Number(mochilaPrice.toFixed(4)),
       isMochilaSeparada: true,
       custoMochilaUnit: mochilaPrice
     };
@@ -286,7 +341,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
     const updatedInsumos = [...localCpu.insumos];
     updatedInsumos.splice(index, 1, baseItem, mochilaItem);
 
-    const updatedCpu: CPU = { ...localCpu, insumos: updatedInsumos };
+    const updatedCpu: CPU = { ...localCpu, insumos: ordenarInsumosCPU(updatedInsumos) };
     setLocalCpu(updatedCpu);
     onRegisterPendingChange(updatedCpu);
   };
@@ -838,12 +893,12 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
 
           <div className="bg-slate-50 p-3 border-t border-slate-200 flex flex-wrap justify-end gap-4 md:gap-6 text-xs text-slate-600 font-medium">
             <div>
-              Equipamentos:{' '}
-              <span className="font-bold text-slate-900">{formatMoney(subEqp)}</span>
+              Mão de Obra:{' '}
+              <span className="font-bold text-blue-700">{formatMoney(subMO)}</span>
             </div>
             <div>
-              Mão de Obra:{' '}
-              <span className="font-bold text-slate-900">{formatMoney(subMO)}</span>
+              Equipamentos:{' '}
+              <span className="font-bold text-amber-700">{formatMoney(subEqp)}</span>
             </div>
             <div>
               Materiais:{' '}
@@ -851,7 +906,7 @@ export const AbaDashboardCPU: React.FC<AbaDashboardCPUProps> = ({
             </div>
             {subTerc > 0 && (
               <div>
-                Terceirizados:{' '}
+                Serviços / Terceirizados:{' '}
                 <span className="font-bold text-teal-700">{formatMoney(subTerc)}</span>
               </div>
             )}

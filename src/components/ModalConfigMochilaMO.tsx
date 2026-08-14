@@ -42,7 +42,7 @@ import {
   calcularMochilaInsumo,
   clonarMochilaParaInsumo
 } from '../lib/mochilaDefaults';
-import { saveObra, saveInsumoBase } from '../services/dbService';
+import { saveObra, saveInsumoBase, updateInsumoCascadeToCPUs } from '../services/dbService';
 
 interface ModalConfigMochilaMOProps {
   isOpen: boolean;
@@ -152,7 +152,15 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
     const currentInsumo = insumosMO.find(
       (i) => i.id === selectedInsumoId || i.id_insumo === selectedInsumoId
     );
-    const existingMochila = activeObra?.mochilasMO?.[selectedInsumoId];
+    const cleanDesc = (currentInsumo?.descricao || '').trim().toLowerCase();
+    const existingMochila = activeObra?.mochilasMO?.[selectedInsumoId]
+      || (currentInsumo?.id_insumo ? activeObra?.mochilasMO?.[currentInsumo.id_insumo] : undefined)
+      || (currentInsumo?.id ? activeObra?.mochilasMO?.[currentInsumo.id] : undefined)
+      || (Object.values(activeObra?.mochilasMO || {}) as MochilaMOInsumo[]).find((m: MochilaMOInsumo) => {
+        const codMatch = m.insumoCodigo && currentInsumo?.id_insumo && m.insumoCodigo.toLowerCase() === currentInsumo.id_insumo.toLowerCase();
+        const descMatch = m.insumoDescricao && m.insumoDescricao.trim().toLowerCase() === cleanDesc;
+        return Boolean(codMatch || descMatch);
+      });
 
     if (existingMochila) {
       setUnidadeBase((existingMochila.unidadeBase as '/mês' | 'h') || (currentInsumo?.unid === '/mês' || currentInsumo?.unid === 'MÊS' ? '/mês' : 'h'));
@@ -395,6 +403,12 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
         ...(activeObra.mochilasMO || {}),
         [selectedInsumoId]: mochilaFinal
       };
+      if (currentInsumo?.id_insumo) {
+        updatedMochilas[currentInsumo.id_insumo] = mochilaFinal;
+      }
+      if (currentInsumo?.id) {
+        updatedMochilas[currentInsumo.id] = mochilaFinal;
+      }
 
       const updatedObra: Obra = {
         ...activeObra,
@@ -412,15 +426,16 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
 
       await saveObra(updatedObra);
 
-      // Optionally sync price to InsumoBase in Banco de Insumos
+      // Optionally sync price to InsumoBase in Banco de Insumos and cascade to CPUs
       if (atualizarPrecoBanco && currentInsumo) {
-        // We set the pr_unit to the calculated Salário + Encargo + Mochila (ou Salário + Encargo dependendo da preferência)
+        // We set the pr_unit to the calculated Salário + Encargo + Mochila (Total Final / Hora)
         const novoPrecoUnitario = mochilaFinal.salarioEncargoMochilaHora || mochilaFinal.salarioComEncargoHora || salarioHora;
         const updatedInsumoBase: InsumoBase = {
           ...currentInsumo,
           pr_unit: Number(novoPrecoUnitario.toFixed(2))
         };
         await saveInsumoBase(updatedInsumoBase);
+        await updateInsumoCascadeToCPUs(updatedInsumoBase, currentInsumo);
       }
 
       if (onSaved) {
