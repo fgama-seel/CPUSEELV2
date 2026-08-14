@@ -18,7 +18,10 @@ import {
   Sliders,
   DollarSign,
   ArrowRight,
-  UserCheck
+  UserCheck,
+  FileSpreadsheet,
+  FileText,
+  Printer
 } from 'lucide-react';
 import {
   Obra,
@@ -28,7 +31,8 @@ import {
   AdicionaisMO,
   ConfigEncargosObra
 } from '../types';
-import { formatMoney } from '../lib/excelExport';
+import { formatMoney, exportarRelatorioMochilaMO } from '../lib/excelExport';
+import { ModalRelatorioMochilaAberta } from './ModalRelatorioMochilaAberta';
 import {
   HORAS_MES_PADRAO,
   ENCARGO_PADRAO_PERC,
@@ -105,6 +109,9 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
   // Clone Modal / Selector State
   const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
   const [cloneSourceId, setCloneSourceId] = useState<string>('');
+
+  // Report Modal State
+  const [showRelatorioModal, setShowRelatorioModal] = useState<boolean>(false);
 
   // UI state
   const [isSaving, setIsSaving] = useState(false);
@@ -295,7 +302,7 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
       if (sourceMochila.adicionais) {
         setAdicionais({ ...sourceMochila.adicionais });
       }
-      setFeedback(`Mochila clonada com sucesso a partir de "${sourceInsumo?.descricao || cloneSourceId}"!`);
+      setFeedback(`Mochila e percentuais de adicionais clonados a partir de "${sourceInsumo?.descricao || cloneSourceId}"! Os adicionais foram recalculados para o salário deste cargo.`);
     } else {
       // If source hasn't customized yet, clone default template
       setItens(gerarItensMochilaPadrao());
@@ -475,6 +482,26 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowRelatorioModal(true)}
+              className="bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 shadow-xs"
+              title="Visualizar e Imprimir o Relatório de Mochila Aberta da Mão de Obra selecionada"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Visualizar / Imprimir</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => exportarRelatorioMochilaMO(calculoAtual, activeObra, currentInsumo)}
+              className="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-emerald-500/40 shadow-xs"
+              title="Baixar planilha aberta em Excel (.xlsx) com a memória de cálculo completa"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Exportar Excel</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowCloneModal(true)}
@@ -862,97 +889,163 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
 
               {/* Tabela de Adicionais de Mão de Obra */}
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-4">
-                <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <Plus className="w-4 h-4 text-amber-600" />
-                  <span>Adicionais de Mão de Obra (R$/hora)</span>
-                </h4>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-2 gap-1">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <Percent className="w-4 h-4 text-amber-600" />
+                      <span>Adicionais de Mão de Obra (% sobre Salário Base)</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Percentuais aplicados sobre o salário base. Ao clonar a mochila para outros cargos, os adicionais acompanham o novo salário automaticamente.
+                    </p>
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   <div>
-                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Dissídio (R$/h)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={adicionais.dissidio ?? 0}
-                      onChange={(e) =>
-                        setAdicionais({ ...adicionais, dissidio: Number(e.target.value) || 0 })
-                      }
-                      className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right"
-                    />
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Dissídio (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="any"
+                        value={adicionais.dissidio ?? 0}
+                        onChange={(e) =>
+                          setAdicionais({ ...adicionais, dissidio: Number(e.target.value) || 0 })
+                        }
+                        className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right pr-6 focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="absolute right-2 top-2 text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 mt-1 block text-right font-medium">
+                      +{formatMoney((salarioHora * ((adicionais.dissidio || 0) / 100)))}/h
+                    </span>
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Ajuda de Custo (R$/h)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={adicionais.ajudaDeCusto ?? 0}
-                      onChange={(e) =>
-                        setAdicionais({ ...adicionais, ajudaDeCusto: Number(e.target.value) || 0 })
-                      }
-                      className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right"
-                    />
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Ajuda de Custo (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="any"
+                        value={adicionais.ajudaDeCusto ?? 0}
+                        onChange={(e) =>
+                          setAdicionais({ ...adicionais, ajudaDeCusto: Number(e.target.value) || 0 })
+                        }
+                        className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right pr-6 focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="absolute right-2 top-2 text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 mt-1 block text-right font-medium">
+                      +{formatMoney((salarioHora * ((adicionais.ajudaDeCusto || 0) / 100)))}/h
+                    </span>
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Hora Extra (R$/h)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={adicionais.horaExtra ?? 0}
-                      onChange={(e) =>
-                        setAdicionais({ ...adicionais, horaExtra: Number(e.target.value) || 0 })
-                      }
-                      className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right"
-                    />
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Hora Extra (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="any"
+                        value={adicionais.horaExtra ?? 0}
+                        onChange={(e) =>
+                          setAdicionais({ ...adicionais, horaExtra: Number(e.target.value) || 0 })
+                        }
+                        className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right pr-6 focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="absolute right-2 top-2 text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 mt-1 block text-right font-medium">
+                      +{formatMoney((salarioHora * ((adicionais.horaExtra || 0) / 100)))}/h
+                    </span>
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Adic. Noturno (R$/h)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={adicionais.adicionalNoturno ?? 0}
-                      onChange={(e) =>
-                        setAdicionais({ ...adicionais, adicionalNoturno: Number(e.target.value) || 0 })
-                      }
-                      className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right"
-                    />
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Adic. Noturno (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="any"
+                        value={adicionais.adicionalNoturno ?? 0}
+                        onChange={(e) =>
+                          setAdicionais({ ...adicionais, adicionalNoturno: Number(e.target.value) || 0 })
+                        }
+                        className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right pr-6 focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="absolute right-2 top-2 text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 mt-1 block text-right font-medium">
+                      +{formatMoney((salarioHora * ((adicionais.adicionalNoturno || 0) / 100)))}/h
+                    </span>
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Periculosidade (R$/h)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={adicionais.periculosidade ?? 0}
-                      onChange={(e) =>
-                        setAdicionais({ ...adicionais, periculosidade: Number(e.target.value) || 0 })
-                      }
-                      className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right"
-                    />
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Periculosidade (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="any"
+                        value={adicionais.periculosidade ?? 0}
+                        onChange={(e) =>
+                          setAdicionais({ ...adicionais, periculosidade: Number(e.target.value) || 0 })
+                        }
+                        className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right pr-6 focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="absolute right-2 top-2 text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 mt-1 block text-right font-medium">
+                      +{formatMoney((salarioHora * ((adicionais.periculosidade || 0) / 100)))}/h
+                    </span>
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Insalubridade (R$/h)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={adicionais.insalubridade ?? 0}
-                      onChange={(e) =>
-                        setAdicionais({ ...adicionais, insalubridade: Number(e.target.value) || 0 })
-                      }
-                      className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right"
-                    />
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Insalubridade (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="any"
+                        value={adicionais.insalubridade ?? 0}
+                        onChange={(e) =>
+                          setAdicionais({ ...adicionais, insalubridade: Number(e.target.value) || 0 })
+                        }
+                        className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 text-right pr-6 focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="absolute right-2 top-2 text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 mt-1 block text-right font-medium">
+                      +{formatMoney((salarioHora * ((adicionais.insalubridade || 0) / 100)))}/h
+                    </span>
                   </div>
                 </div>
 
-                <div className="bg-amber-50/80 p-3 rounded-xl border border-amber-200 flex items-center justify-between text-xs font-bold text-amber-950">
-                  <span>Soma dos Adicionais de Mão de Obra:</span>
-                  <span className="font-mono text-sm">
-                    +{formatMoney((calculoAtual.prUnBaseSalarioHora || 0) - (calculoAtual.salarioHora || 0))} / h
-                  </span>
-                </div>
+                {/* Resumo da Soma dos Adicionais */}
+                {(() => {
+                  const somaPerc =
+                    (Number(adicionais.dissidio) || 0) +
+                    (Number(adicionais.ajudaDeCusto) || 0) +
+                    (Number(adicionais.horaExtra) || 0) +
+                    (Number(adicionais.adicionalNoturno) || 0) +
+                    (Number(adicionais.periculosidade) || 0) +
+                    (Number(adicionais.insalubridade) || 0);
+                  const valorAdicHora = (calculoAtual.prUnBaseSalarioHora || 0) - (calculoAtual.salarioHora || 0);
+                  const valorAdicMes = valorAdicHora * horasMes;
+
+                  return (
+                    <div className="bg-amber-50/90 p-3.5 rounded-xl border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs font-bold text-amber-950 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-mono font-extrabold text-xs">
+                          {somaPerc.toFixed(2)}% Total
+                        </span>
+                        <span>Soma dos Adicionais Contratuais:</span>
+                      </div>
+                      <div className="font-mono text-sm flex items-center gap-3">
+                        <span>+{formatMoney(valorAdicHora)} / h</span>
+                        <span className="text-xs font-normal text-amber-800">
+                          (+{formatMoney(valorAdicMes)} / mês)
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Encargo Social % */}
@@ -1152,6 +1245,26 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
               type="button"
+              onClick={() => setShowRelatorioModal(true)}
+              className="px-3.5 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              title="Visualizar e Imprimir o Relatório de Mochila Aberta desta Mão de Obra"
+            >
+              <Printer className="w-4 h-4 text-indigo-600" />
+              <span>Relatório Aberto</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => exportarRelatorioMochilaMO(calculoAtual, activeObra, currentInsumo)}
+              className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              title="Exportar Planilha Excel da Mochila Aberta (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+              <span>Exportar Excel</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold transition"
             >
@@ -1188,7 +1301,7 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
 
             <div className="p-5 space-y-4">
               <p className="text-xs text-slate-600">
-                Selecione a Mão de Obra de origem para copiar <strong>na íntegra</strong> todos os 13 itens da mochila, quantidades, valores e alíquotas de encargos para <strong className="text-indigo-900">{currentInsumo?.descricao || selectedInsumoId}</strong>:
+                Selecione a Mão de Obra de origem para copiar <strong>na íntegra</strong> todos os itens da mochila, valores, alíquotas de encargos e os <strong>percentuais de adicionais (%)</strong> para <strong className="text-indigo-900">{currentInsumo?.descricao || selectedInsumoId}</strong>. Os adicionais serão recalculados com base no salário deste cargo.
               </p>
 
               <div>
@@ -1237,6 +1350,15 @@ export const ModalConfigMochilaMO: React.FC<ModalConfigMochilaMOProps> = ({
           </div>
         </div>
       )}
+
+      {/* RELATÓRIO / VISUALIZAÇÃO ABERTA MODAL */}
+      <ModalRelatorioMochilaAberta
+        isOpen={showRelatorioModal}
+        onClose={() => setShowRelatorioModal(false)}
+        mochila={calculoAtual}
+        activeObra={activeObra}
+        insumoBase={currentInsumo}
+      />
 
     </div>
   );

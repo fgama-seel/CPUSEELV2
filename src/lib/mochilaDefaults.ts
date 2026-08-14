@@ -217,7 +217,7 @@ export function calcularMochilaInsumo(
     salarioMes = salarioHora * horasMes;
   }
 
-  // 2. Adicionais de Mão de Obra (R$/h)
+  // 2. Adicionais de Mão de Obra (% sobre o Salário Base)
   const adic = mochila.adicionais || {};
   const dissidio = Number(adic.dissidio) || 0;
   const ajudaDeCusto = Number(adic.ajudaDeCusto) || 0;
@@ -226,21 +226,40 @@ export function calcularMochilaInsumo(
   const periculosidade = Number(adic.periculosidade) || 0;
   const insalubridade = Number(adic.insalubridade) || 0;
 
-  const somaAdicionais = dissidio + ajudaDeCusto + horaExtra + adicionalNoturno + periculosidade + insalubridade;
+  const somaAdicionaisPerc = dissidio + ajudaDeCusto + horaExtra + adicionalNoturno + periculosidade + insalubridade;
+  const somaAdicionais = salarioHora * (somaAdicionaisPerc / 100);
 
   // 3. PrUn. Base (Salário/h) = Salário/h + Adicionais
   const prUnBaseSalarioHora = salarioHora + somaAdicionais;
+  const salarioComAdicionaisHora = prUnBaseSalarioHora;
 
   // 4. Salário + Encargo (R$/h) = prUnBaseSalarioHora * (1 + encargoPerc/100)
-  const salarioComEncargoHora = prUnBaseSalarioHora * (1 + encargoPerc / 100);
+  const custoHoraEncargo = prUnBaseSalarioHora * (encargoPerc / 100);
+  const salarioComEncargoHora = prUnBaseSalarioHora + custoHoraEncargo;
 
   // 5. Itens da Mochila
-  const itens = mochila.itens && mochila.itens.length > 0 ? mochila.itens : gerarItensMochilaPadrao();
-  const totalMensalMochila = itens.reduce((sum, it) => {
+  const itensOriginais = mochila.itens && mochila.itens.length > 0 ? mochila.itens : gerarItensMochilaPadrao();
+  const itens: ItemMochila[] = itensOriginais.map((it) => {
     const qtd = it.quantidade !== undefined ? Number(it.quantidade) : 1;
-    const unt = Number(it.custo_unit) || 0;
+    const unt = Number(it.custo_unit !== undefined ? it.custo_unit : it.valorUnitario) || 0;
     const tot = it.total !== undefined ? Number(it.total) : qtd * unt;
-    return sum + (Number(tot) || 0);
+    const cMes = it.custoMensal !== undefined ? Number(it.custoMensal) : tot;
+    const cHora = it.custoHora !== undefined ? Number(it.custoHora) : (horasMes > 0 ? cMes / horasMes : 0);
+    return {
+      ...it,
+      custo_unit: unt,
+      valorUnitario: unt,
+      unid: it.unid || it.unidade || 'mês',
+      unidade: it.unid || it.unidade || 'mês',
+      quantidade: qtd,
+      total: tot,
+      custoMensal: cMes,
+      custoHora: cHora
+    };
+  });
+
+  const totalMensalMochila = itens.reduce((sum, it) => {
+    return sum + (Number(it.total) || 0);
   }, 0);
 
   // 6. Mochila (R$/h) = totalMensalMochila / horasMes
@@ -267,6 +286,9 @@ export function calcularMochilaInsumo(
     encargoPerc,
     horasMes,
     itens,
+    salarioComAdicionaisHora: Number(salarioComAdicionaisHora.toFixed(4)),
+    custoHoraEncargo: Number(custoHoraEncargo.toFixed(4)),
+    custoMesMochila: Number(totalMensalMochila.toFixed(2)),
     prUnBaseSalarioHora: Number(prUnBaseSalarioHora.toFixed(4)),
     salarioComEncargoHora: Number(salarioComEncargoHora.toFixed(4)),
     totalMensalMochila: Number(totalMensalMochila.toFixed(2)),
@@ -274,6 +296,26 @@ export function calcularMochilaInsumo(
     salarioEncargoMochilaHora: Number(salarioEncargoMochilaHora.toFixed(4)),
     atualizadoEm: new Date().toISOString()
   };
+}
+
+export function gerarMochilaPadraoParaInsumo(
+  insumoId: string,
+  insumoDescricao: string,
+  prUnit: number,
+  insumoCodigo?: string,
+  configObra?: ConfigEncargosObra
+): MochilaMOInsumo {
+  return calcularMochilaInsumo(
+    {
+      insumoId,
+      insumoCodigo,
+      insumoDescricao,
+      unidadeBase: 'h',
+      salarioHora: prUnit,
+      itens: gerarItensMochilaPadrao()
+    },
+    configObra
+  );
 }
 
 export function clonarMochilaParaInsumo(

@@ -1,12 +1,12 @@
 export type TipoInsumo = 'Material' | 'Mão de Obra' | 'Equipamento' | 'Terceirizado';
 
 export interface AdicionaisMO {
-  dissidio?: number; // Dissídio (R$/h)
-  ajudaDeCusto?: number; // Ajuda de custo (R$/h)
-  horaExtra?: number; // Hora Extra (R$/h)
-  adicionalNoturno?: number; // Adicional Noturno (R$/h)
-  periculosidade?: number; // Periculosidade (R$/h)
-  insalubridade?: number; // Insalubridade (R$/h)
+  dissidio?: number; // Dissídio (% sobre salário)
+  ajudaDeCusto?: number; // Ajuda de custo (% sobre salário)
+  horaExtra?: number; // Hora Extra (% sobre salário)
+  adicionalNoturno?: number; // Adicional Noturno (% sobre salário)
+  periculosidade?: number; // Periculosidade (% sobre salário)
+  insalubridade?: number; // Insalubridade (% sobre salário)
 }
 
 export interface ItemMochila {
@@ -15,8 +15,12 @@ export interface ItemMochila {
   categoria?: 'ALIMENTAÇÃO' | 'TRANSPORTE' | 'UNIFORMES / EPI' | 'ASSISTÊNCIA' | 'ALOJAMENTO' | 'OUTROS' | string;
   descricao: string;
   custo_unit: number;
+  valorUnitario?: number;
   unid: string;
+  unidade?: string;
   quantidade?: number;
+  custoMensal?: number;
+  custoHora?: number;
   total: number;
 }
 
@@ -32,6 +36,9 @@ export interface MochilaMOInsumo {
   horasMes?: number; // Horas/mês divisor ex: 189.2
   itens: ItemMochila[];
   // Valores calculados
+  salarioComAdicionaisHora?: number;
+  custoHoraEncargo?: number;
+  custoMesMochila?: number;
   prUnBaseSalarioHora?: number; // Salário/h + adicionais
   salarioComEncargoHora?: number; // prUnBaseSalarioHora * (1 + encargoPerc/100)
   totalMensalMochila?: number; // Soma dos itens da mochila

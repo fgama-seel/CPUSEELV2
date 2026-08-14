@@ -13,14 +13,15 @@ import {
   AlertTriangle,
   Briefcase,
   Sparkles,
-  Info
+  Info,
+  FileSpreadsheet
 } from 'lucide-react';
-import { InsumoBase, TipoInsumo, Obra } from '../types';
-import { formatMoney } from '../lib/excelExport';
+import { InsumoBase, TipoInsumo, Obra, MochilaMOInsumo } from '../types';
+import { formatMoney, exportarRelatorioMochilaMO } from '../lib/excelExport';
 import { saveInsumoBase, deleteInsumoBase, createInsumoBase, updateInsumoCascadeToCPUs } from '../services/dbService';
 import { ModalImportarInsumos } from './ModalImportarInsumos';
 import { ModalConfigMochilaMO } from './ModalConfigMochilaMO';
-import { HORAS_MES_PADRAO, calcularMochila } from '../lib/mochilaDefaults';
+import { HORAS_MES_PADRAO, calcularMochila, gerarMochilaPadraoParaInsumo } from '../lib/mochilaDefaults';
 
 interface AbaInsumosCadastradosProps {
   bancoInsumos: InsumoBase[];
@@ -532,17 +533,38 @@ export const AbaInsumosCadastrados: React.FC<AbaInsumosCadastradosProps> = ({
                         <td className="p-3 text-center">
                           <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100 transition">
                             {item.tipo === 'Mão de Obra' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedMochilaInsumoId(item.id);
-                                  setShowMochilaModal(true);
-                                }}
-                                className="text-amber-600 hover:bg-amber-50 p-1.5 rounded-lg transition"
-                                title="Configurar Mochila & Encargos desta Mão de Obra"
-                              >
-                                <Briefcase className="w-3.5 h-3.5" />
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedMochilaInsumoId(item.id);
+                                    setShowMochilaModal(true);
+                                  }}
+                                  className="text-amber-600 hover:bg-amber-50 p-1.5 rounded-lg transition"
+                                  title="Configurar Mochila & Encargos desta Mão de Obra"
+                                >
+                                  <Briefcase className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const savedMochila = activeObra?.mochilasMO?.[item.id || item.id_insumo];
+                                    const mochilaToExport: MochilaMOInsumo = savedMochila || gerarMochilaPadraoParaInsumo(
+                                      item.id || item.id_insumo,
+                                      item.descricao,
+                                      item.pr_unit,
+                                      item.id_insumo,
+                                      activeObra?.configEncargos
+                                    );
+                                    exportarRelatorioMochilaMO(mochilaToExport, activeObra, item);
+                                  }}
+                                  className="text-emerald-700 hover:bg-emerald-50 p-1.5 rounded-lg transition"
+                                  title="Exportar Relatório Excel da Mochila Aberta (.xlsx)"
+                                >
+                                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                                </button>
+                              </>
                             )}
 
                             <button
