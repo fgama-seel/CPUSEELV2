@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Upload,
   Database,
@@ -16,11 +16,15 @@ import {
   ChevronRight,
   ArrowRight,
   CheckCircle2,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  Trash2,
+  RefreshCw,
+  ShieldAlert
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Obra, CPU, InsumoBase } from '../types';
-import { batchImportCPUsAndInsumos, createCPU, createInsumoBase } from '../services/dbService';
+import { batchImportCPUsAndInsumos, createCPU, createInsumoBase, getObraStats } from '../services/dbService';
 import {
   parseCSV,
   processBaseComposicoes,
@@ -113,6 +117,13 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Estados de Modo de Importação e Dupla Verificação
+  const [modoImportacao, setModoImportacao] = useState<'complementar' | 'substituir'>('complementar');
+  const [obraStats, setObraStats] = useState<{ totalCpus: number; totalInsumos: number } | null>(null);
+  const [showDoubleConfirmModal, setShowDoubleConfirmModal] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [confirmCheckbox, setConfirmCheckbox] = useState(false);
+
   // Estados dos arquivos carregados
   const [composicoesMap, setComposicoesMap] = useState<Map<string, ParsedCPUItem>>(new Map());
   const [listaCPUsMap, setListaCPUsMap] = useState<Map<string, any>>(new Map());
@@ -135,6 +146,19 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
 
   const [copiedSQL, setCopiedSQL] = useState(false);
   const [copiedGuia, setCopiedGuia] = useState(false);
+
+  // Busca dados atuais da obra sempre que o modal abre ou a obra muda
+  useEffect(() => {
+    if (isOpen && obra) {
+      getObraStats(obra.id).then((stats) => {
+        setObraStats(stats);
+      });
+      setModoImportacao('complementar');
+      setShowDoubleConfirmModal(false);
+      setConfirmText('');
+      setConfirmCheckbox(false);
+    }
+  }, [isOpen, obra?.id]);
 
   if (!isOpen || !obra) return null;
 
@@ -191,8 +215,8 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
 
-    let currentCompMap = new Map(composicoesMap);
-    let currentListMap = new Map(listaCPUsMap);
+    let currentCompMap: Map<string, ParsedCPUItem> = new Map(composicoesMap);
+    let currentListMap: Map<string, any> = new Map(listaCPUsMap);
     let newFileNameComp = fileNameComposicoes;
     let newFileNameList = fileNameLista;
 
@@ -317,17 +341,31 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
         obra.id,
         parsedData.cpus,
         parsedData.insumosBase,
-        (current, total) => {
+        (current, total, message) => {
           setProgress({ current, total });
-          setLoadingMessage(`Gravando no Firestore: ${current} de ${total} registros...`);
-        }
+          setLoadingMessage(message || `Processando: ${current} de ${total} registros...`);
+        },
+        modoImportacao
       );
 
-      setSuccessMsg(
-        `🎉 Importação concluída com sucesso! Foram gravadas ${res.cpusImportadas} CPUs e ${res.insumosImportados} Insumos na obra "${obra.nome}".`
-      );
+      if (modoImportacao === 'substituir') {
+        setSuccessMsg(
+          `🎉 Base substituída com sucesso! ${res.cpusExcluidas ?? 0} composições anteriores foram removidas e gravadas ${res.cpusImportadas} novas CPUs e ${res.insumosImportados} novos Insumos na obra "${obra.nome}".`
+        );
+      } else {
+        setSuccessMsg(
+          `🎉 Importação concluída com sucesso! Foram gravadas/atualizadas ${res.cpusImportadas} CPUs e ${res.insumosImportados} Insumos na obra "${obra.nome}".`
+        );
+      }
+
+      // Atualiza estatísticas da obra
+      getObraStats(obra.id).then((stats) => setObraStats(stats));
+
       setParsedData(null);
       setProgress(null);
+      setShowDoubleConfirmModal(false);
+      setConfirmText('');
+      setConfirmCheckbox(false);
       onImportSuccess();
     } catch (err: any) {
       console.error('Erro ao salvar no Firestore:', err);
@@ -599,25 +637,17 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
                         <span>Base Compilada com Sucesso!</span>
                       </h4>
                       <p className="text-xs text-emerald-800 mt-0.5">
-                        Confira os totais antes de confirmar a gravação no banco de dados da obra.
+                        Confira os totais abaixo e escolha se deseja <strong>Complementar</strong> ou <strong>Substituir</strong> os dados da obra.
                       </p>
                     </div>
 
-                    <button
-                      onClick={handleConfirmImport}
-                      disabled={loading}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-5 py-2.5 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-xs active:scale-95 disabled:opacity-50 cursor-pointer"
-                    >
-                      {loading ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      ) : (
-                        <Check className="w-4 h-4" />
-                      )}
-                      <span>{loading ? 'Gravando no Firestore...' : 'Confirmar e Gravar na Obra'}</span>
-                    </button>
+                    <div className="flex items-center gap-2 bg-emerald-100/80 px-3 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold text-emerald-900">
+                      <Layers className="w-4 h-4 text-emerald-700" />
+                      <span>Obra: {obra.nome}</span>
+                    </div>
                   </div>
 
-                  {/* Cards de Resumo */}
+                  {/* Cards de Resumo da Nova Base */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
                       <span className="text-[10px] font-bold text-slate-500 uppercase block">Total de CPUs</span>
@@ -650,13 +680,125 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
                     </div>
                   </div>
 
+                  {/* SELETOR DO MODO DE IMPORTAÇÃO: COMPLEMENTAR vs SUBSTITUIR */}
+                  <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-2xs space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-emerald-700" />
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                          Qual premissa deseja adotar ao enviar esta base?
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
+                        {obraStats ? (
+                          <span>
+                            Base atual no sistema: <strong className="text-slate-800">{obraStats.totalCpus} CPUs</strong> e{' '}
+                            <strong className="text-slate-800">{obraStats.totalInsumos} insumos</strong>
+                          </span>
+                        ) : (
+                          'Calculando base atual...'
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* Opção 1: Modo Complementar */}
+                      <div
+                        onClick={() => setModoImportacao('complementar')}
+                        className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                          modoImportacao === 'complementar'
+                            ? 'border-emerald-500 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-200'
+                            : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>1. Complementar / Atualizar</span>
+                            </span>
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              Padrão • Seguro
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            <strong>Mantém tudo o que já existe na obra.</strong> Se a planilha tiver uma CPU com o mesmo código, atualiza seus dados; se for nova, adiciona sem apagar nenhum registro anterior.
+                          </p>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2 text-[11px] text-emerald-700 font-bold">
+                          <input
+                            type="radio"
+                            name="modoImportacao"
+                            checked={modoImportacao === 'complementar'}
+                            onChange={() => setModoImportacao('complementar')}
+                            className="text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span>Manter base existente e mesclar</span>
+                        </div>
+                      </div>
+
+                      {/* Opção 2: Modo Substituir */}
+                      <div
+                        onClick={() => setModoImportacao('substituir')}
+                        className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                          modoImportacao === 'substituir'
+                            ? 'border-rose-500 bg-rose-50/70 shadow-xs ring-2 ring-rose-200'
+                            : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              <span>2. Substituir Base Completa</span>
+                            </span>
+                            <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              Dupla Verificação
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            <strong>Apaga todas as CPUs e insumos anteriores</strong> desta obra e cadastra a nova base do zero. Ideal caso você tenha subido uma planilha errada ou o orçamento tenha sido refeito.
+                          </p>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2 text-[11px] text-rose-700 font-bold">
+                          <input
+                            type="radio"
+                            name="modoImportacao"
+                            checked={modoImportacao === 'substituir'}
+                            onChange={() => setModoImportacao('substituir')}
+                            className="text-rose-600 focus:ring-rose-500"
+                          />
+                          <span>Apagar base anterior e recriar do zero</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Aviso e Detalhe quando modo Substituir está selecionado */}
+                    {modoImportacao === 'substituir' && (
+                      <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-900 flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <p className="font-bold text-rose-950">
+                            Atenção: Modo de Substituição Ativado!
+                          </p>
+                          <p className="text-[11px] text-rose-800 leading-relaxed">
+                            Esta obra possui atualmente <strong>{obraStats?.totalCpus ?? 0} composições (CPUs)</strong> e{' '}
+                            <strong>{obraStats?.totalInsumos ?? 0} insumos</strong> vinculados. Ao clicar no botão abaixo, uma <strong>tela de dupla verificação</strong> será exibida exigindo confirmação explícita e digitação de segurança para autorizar a exclusão definitiva dos dados antigos.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Amostra das primeiras CPUs */}
                   <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden text-xs">
                     <div className="bg-emerald-100/60 px-3 py-2 font-bold text-emerald-950 flex justify-between items-center text-[11px]">
                       <span>Exemplo das CPUs a serem gravadas (primeiras 5 de {parsedData.cpus.length}):</span>
-                      <span className="text-emerald-700">Todas serão salvas ou atualizadas</span>
+                      <span className="text-emerald-700">
+                        {modoImportacao === 'substituir' ? 'Substituirão todas as antigas' : 'Serão mescladas/atualizadas'}
+                      </span>
                     </div>
-                    <div className="divide-y divide-slate-100 max-h-44 overflow-y-auto">
+                    <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto">
                       {parsedData.cpus.slice(0, 5).map((cpu) => (
                         <div key={cpu.code} className="p-2.5 flex items-center justify-between hover:bg-slate-50">
                           <div>
@@ -675,6 +817,40 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Barra de Ação Final da Importação */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                    <span className="text-xs text-slate-500">
+                      Modo selecionado:{' '}
+                      <strong className={modoImportacao === 'substituir' ? 'text-rose-700 font-bold' : 'text-emerald-700 font-bold'}>
+                        {modoImportacao === 'substituir' ? 'Substituir Base Completa' : 'Complementar / Atualizar'}
+                      </strong>
+                    </span>
+
+                    {modoImportacao === 'complementar' ? (
+                      <button
+                        onClick={handleConfirmImport}
+                        disabled={loading}
+                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+                      >
+                        {loading ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
+                        <span>{loading ? 'Gravando no Firestore...' : 'Confirmar e Complementar Obra'}</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowDoubleConfirmModal(true)}
+                        disabled={loading}
+                        className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-black px-6 py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-white" />
+                        <span>Avançar para Substituição da Base (Dupla Verificação)...</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -809,6 +985,48 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Dica Didática para Servidor: Substituir vs Complementar no MySQL/Laravel */}
+                <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200 space-y-2">
+                  <h6 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                    <HelpCircle className="w-4 h-4 text-amber-700" />
+                    <span>E se você subir a base errada no MySQL da sua empresa? O que fazer?</span>
+                  </h6>
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    Não se preocupe, é muito comum e simples de corrigir no servidor:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+                    <div className="bg-white p-3 rounded-lg border border-amber-200">
+                      <strong className="text-slate-800 block font-bold mb-1">Para Substituir (Zerar tudo e reenviar):</strong>
+                      <span className="text-slate-600 block mb-1.5">
+                        No <strong>phpMyAdmin</strong>, clique na aba <strong>SQL</strong> e execute:
+                      </span>
+                      <code className="block bg-slate-900 text-amber-400 p-2 rounded text-[10px] font-mono whitespace-pre leading-relaxed">
+                        SET FOREIGN_KEY_CHECKS = 0;{'\n'}
+                        TRUNCATE TABLE cpu_insumos;{'\n'}
+                        TRUNCATE TABLE cpus;{'\n'}
+                        TRUNCATE TABLE insumos;{'\n'}
+                        SET FOREIGN_KEY_CHECKS = 1;
+                      </code>
+                      <span className="text-[10px] text-slate-500 mt-1 block">
+                        Isso limpa as tabelas com segurança. Depois é só importar o novo <code>.sql</code>!
+                      </span>
+                    </div>
+
+                    <div className="bg-white p-3 rounded-lg border border-amber-200">
+                      <strong className="text-slate-800 block font-bold mb-1">Para Zerar via Laravel (Terminal):</strong>
+                      <span className="text-slate-600 block mb-1.5">
+                        Se você tiver acesso ao terminal do servidor, basta rodar:
+                      </span>
+                      <code className="block bg-slate-900 text-emerald-400 p-2 rounded text-[10px] font-mono whitespace-pre leading-relaxed">
+                        php artisan migrate:fresh --seed
+                      </code>
+                      <span className="text-[10px] text-slate-500 mt-1 block">
+                        O Laravel apaga todas as tabelas e recria tudo perfeitamente limpo do zero.
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -880,6 +1098,122 @@ export const ModalImportarBD: React.FC<ModalImportarBDProps> = ({
           </button>
         </div>
       </div>
+
+      {/* MODAL DE DUPLA VERIFICAÇÃO PARA SUBSTITUIÇÃO TOTAL */}
+      {showDoubleConfirmModal && (
+        <div className="fixed inset-0 z-70 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border-2 border-rose-500 max-w-xl w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            {/* Header do Alerta */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center shrink-0 border border-rose-200">
+                <ShieldAlert className="w-7 h-7 text-rose-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                    Segurança de Dados
+                  </span>
+                  <span className="text-xs font-bold text-rose-700">Dupla Verificação Requerida</span>
+                </div>
+                <h3 className="text-base font-black text-slate-900 mt-1">
+                  Confirmar Substituição Total da Base
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Esta ação apagará permanentemente a base anterior da obra selecionada.
+                </p>
+              </div>
+            </div>
+
+            {/* Detalhamento do Impacto */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="text-xs">
+                <span className="text-slate-400 block uppercase font-bold text-[10px]">Obra Alvo:</span>
+                <span className="font-bold text-slate-800 text-sm">{obra.nome}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                <div className="bg-rose-50/80 border border-rose-200 p-2.5 rounded-lg">
+                  <span className="text-[10px] font-bold text-rose-800 uppercase block flex items-center gap-1">
+                    <Trash2 className="w-3 h-3 text-rose-600" />
+                    Registros a Excluir
+                  </span>
+                  <div className="mt-1 space-y-0.5 text-xs text-rose-950 font-medium">
+                    <p><strong>{obraStats?.totalCpus ?? 0}</strong> CPUs antigas</p>
+                    <p><strong>{obraStats?.totalInsumos ?? 0}</strong> Insumos vinculados</p>
+                  </div>
+                </div>
+
+                <div className="bg-emerald-50/80 border border-emerald-200 p-2.5 rounded-lg">
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase block flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    Nova Base a Gravar
+                  </span>
+                  <div className="mt-1 space-y-0.5 text-xs text-emerald-950 font-medium">
+                    <p><strong>{parsedData?.summary.totalCPUs ?? 0}</strong> Novas CPUs</p>
+                    <p><strong>{parsedData?.summary.totalInsumos ?? 0}</strong> Novos Insumos</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Verificação 1: Checkbox */}
+            <label className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl cursor-pointer">
+              <input
+                type="checkbox"
+                checked={confirmCheckbox}
+                onChange={(e) => setConfirmCheckbox(e.target.checked)}
+                className="mt-0.5 rounded text-rose-600 focus:ring-rose-500 w-4 h-4 cursor-pointer"
+              />
+              <span className="text-xs text-amber-950 leading-relaxed font-medium">
+                <strong>Verificação 1:</strong> Compreendo que todas as composições (CPUs) e insumos atualmente cadastrados nesta obra serão <strong>permanentemente excluídos</strong> e não poderão ser recuperados.
+              </span>
+            </label>
+
+            {/* Verificação 2: Digitação */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                <strong>Verificação 2:</strong> Para liberar o botão, digite <span className="text-rose-600 font-mono font-black">SUBSTITUIR</span> abaixo:
+              </label>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="Digite SUBSTITUIR em maiúsculas"
+                className="w-full px-3 py-2 border-2 border-slate-300 focus:border-rose-500 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-slate-800 focus:outline-none"
+              />
+            </div>
+
+            {/* Ações do Modal */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDoubleConfirmModal(false);
+                  setConfirmText('');
+                  setConfirmCheckbox(false);
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
+              >
+                Cancelar e Voltar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmImport}
+                disabled={!confirmCheckbox || confirmText.trim().toUpperCase() !== 'SUBSTITUIR' || loading}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-black px-5 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2 text-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>{loading ? 'Substituindo base...' : 'Sim, Excluir Antigos e Gravar Nova Base'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

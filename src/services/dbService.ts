@@ -429,13 +429,93 @@ export async function deleteObra(obraId: string): Promise<{ deletedCpus: number;
   }
 }
 
-// Batch import CPUs and Insumos into a specific Obra with deterministic IDs and chunking
+// Obter estatísticas atuais de CPUs e Insumos da Obra (para validação pré-substituição)
+export async function getObraStats(obraId: string): Promise<{ totalCpus: number; totalInsumos: number }> {
+  try {
+    const cpusSnap = await getDocs(collection(db, 'cpus'));
+    let totalCpus = 0;
+    for (const docSnap of cpusSnap.docs) {
+      const d = docSnap.data();
+      if (d.obraId === obraId || (!d.obraId && obraId === 'obra-966')) {
+        totalCpus++;
+      }
+    }
+
+    const insSnap = await getDocs(collection(db, 'bancoInsumos'));
+    let totalInsumos = 0;
+    for (const docSnap of insSnap.docs) {
+      const d = docSnap.data();
+      if (d.obraId === obraId || (!d.obraId && obraId === 'obra-966')) {
+        totalInsumos++;
+      }
+    }
+
+    return { totalCpus, totalInsumos };
+  } catch (err) {
+    console.error('Erro ao buscar estatísticas da obra:', err);
+    return { totalCpus: 0, totalInsumos: 0 };
+  }
+}
+
+// Limpar todas as CPUs e Insumos vinculados a esta obra (para o Modo Substituir)
+export async function clearObraBaseData(
+  obraId: string,
+  onProgress?: (message: string) => void
+): Promise<{ deletedCpus: number; deletedInsumos: number }> {
+  let deletedCpus = 0;
+  let deletedInsumos = 0;
+
+  if (onProgress) onProgress('Excluindo composições (CPUs) anteriores da obra...');
+  const cpusSnap = await getDocs(collection(db, 'cpus'));
+  for (const docSnap of cpusSnap.docs) {
+    const data = docSnap.data();
+    if (data.obraId === obraId || (!data.obraId && obraId === 'obra-966')) {
+      await deleteDoc(doc(db, 'cpus', docSnap.id));
+      deletedCpus++;
+    }
+  }
+
+  if (onProgress) onProgress('Excluindo banco de insumos anterior da obra...');
+  const insumosSnap = await getDocs(collection(db, 'bancoInsumos'));
+  for (const docSnap of insumosSnap.docs) {
+    const data = docSnap.data();
+    if (data.obraId === obraId || (!data.obraId && obraId === 'obra-966')) {
+      await deleteDoc(doc(db, 'bancoInsumos', docSnap.id));
+      deletedInsumos++;
+    }
+  }
+
+  firestoreTracker.logOperation(
+    'DELETE',
+    'cpus',
+    deletedCpus + deletedInsumos,
+    `Substituição total: Exclusão de ${deletedCpus} CPUs e ${deletedInsumos} insumos na Obra ${obraId}`
+  );
+
+  return { deletedCpus, deletedInsumos };
+}
+
+// Batch import CPUs and Insumos into a specific Obra with deterministic IDs and mode support
 export async function batchImportCPUsAndInsumos(
   obraId: string,
   cpusList: Omit<CPU, 'id' | 'obraId'>[],
   insumosList: InsumoBase[],
-  onProgress?: (current: number, total: number) => void
-): Promise<{ cpusImportadas: number; insumosImportados: number }> {
+  onProgress?: (current: number, total: number, message?: string) => void,
+  mode: 'complementar' | 'substituir' = 'complementar'
+): Promise<{ cpusImportadas: number; insumosImportados: number; cpusExcluidas?: number; insumosExcluidos?: number }> {
+  let cpusExcluidas = 0;
+  let insumosExcluidos = 0;
+
+  // Se o modo for 'substituir', apaga primeiro toda a base antiga desta obra
+  if (mode === 'substituir') {
+    if (onProgress) onProgress(0, 1, 'Excluindo registros antigos da obra antes de gravar a nova base...');
+    const result = await clearObraBaseData(obraId, (msg) => {
+      if (onProgress) onProgress(0, 1, msg);
+    });
+    cpusExcluidas = result.deletedCpus;
+    insumosExcluidos = result.deletedInsumos;
+  }
+
   let cpusCount = 0;
   let insumosCount = 0;
   const totalItems = cpusList.length + insumosList.length;
@@ -459,7 +539,7 @@ export async function batchImportCPUsAndInsumos(
     );
     insumosCount++;
     processed++;
-    if (onProgress) onProgress(processed, totalItems);
+    if (onProgress) onProgress(processed, totalItems, `Gravando insumos: ${insumosCount} de ${insumosList.length}...`);
   }
 
   // 2. Salvar CPUs na Obra
@@ -481,17 +561,17 @@ export async function batchImportCPUsAndInsumos(
     );
     cpusCount++;
     processed++;
-    if (onProgress) onProgress(processed, totalItems);
+    if (onProgress) onProgress(processed, totalItems, `Gravando CPUs: ${cpusCount} de ${cpusList.length}...`);
   }
 
   firestoreTracker.logOperation(
     'WRITE',
     'cpus',
     cpusCount + insumosCount,
-    `Carga em lote de ${cpusCount} CPUs e ${insumosCount} Insumos na Obra ${obraId}`
+    `Carga (${mode.toUpperCase()}) de ${cpusCount} CPUs e ${insumosCount} Insumos na Obra ${obraId}`
   );
 
-  return { cpusImportadas: cpusCount, insumosImportados: insumosCount };
+  return { cpusImportadas: cpusCount, insumosImportados: insumosCount, cpusExcluidas, insumosExcluidos };
 }
 
 
