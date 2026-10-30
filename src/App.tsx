@@ -42,6 +42,7 @@ import { ModalImportarInsumos } from './components/ModalImportarInsumos';
 import { ModalComposicoes } from './components/ModalComposicoes';
 import { ModalGuiaUsuario } from './components/ModalGuiaUsuario';
 import { ModalExcluirObra } from './components/ModalExcluirObra';
+import { ModalImportarBD } from './components/ModalImportarBD';
 import { LoginScreen } from './components/LoginScreen';
 
 export default function App() {
@@ -74,6 +75,7 @@ export default function App() {
   const [isModalNovaCpuOpen, setIsModalNovaCpuOpen] = useState<boolean>(false);
   const [isModalInsumoOpen, setIsModalInsumoOpen] = useState<boolean>(false);
   const [isModalImportarInsumosOpen, setIsModalImportarInsumosOpen] = useState<boolean>(false);
+  const [isModalImportarBDOpen, setIsModalImportarBDOpen] = useState<boolean>(false);
   const [isGuiaUsuarioOpen, setIsGuiaUsuarioOpen] = useState<boolean>(false);
   const [obraToDelete, setObraToDelete] = useState<Obra | null>(null);
 
@@ -338,6 +340,7 @@ export default function App() {
               onSelectTab={setActiveTab}
               onOpenModalNovaObra={() => setIsModalNovaObraOpen(true)}
               onOpenModalNovaCPU={() => setIsModalNovaCpuOpen(true)}
+              onOpenModalImportarBD={() => setIsModalImportarBDOpen(true)}
               onCloseMobile={() => setIsOpenMobileSidebar(false)}
               onOpenModalExcluirObra={(obra) => setObraToDelete(obra)}
             />
@@ -386,6 +389,7 @@ export default function App() {
                       activeObra={activeObra}
                       onSelectCpu={handleSelectCpu}
                       onDeleteCpu={handleDeleteCPU}
+                      onOpenImportModal={() => setIsModalImportarBDOpen(true)}
                     />
                   )}
 
@@ -502,6 +506,17 @@ export default function App() {
         isOpen={!!obraToDelete}
         onClose={() => setObraToDelete(null)}
         onConfirmDelete={handleConfirmDeleteObra}
+      />
+
+      <ModalImportarBD
+        isOpen={isModalImportarBDOpen}
+        obra={activeObra}
+        onClose={() => setIsModalImportarBDOpen(false)}
+        onImportSuccess={() => {
+          if (activeObraId) {
+            setActiveObraId(activeObraId);
+          }
+        }}
       />
     </div>
   );

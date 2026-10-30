@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Table, Search, FileSpreadsheet, Network, ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
+import { Table, Search, FileSpreadsheet, Network, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Database } from 'lucide-react';
 import { CPU, Obra } from '../types';
 import { formatMoney, exportarListaCPUs, exportarComposicoes } from '../lib/excelExport';
 import { ModalConfirmarExclusaoCPU } from './ModalConfirmarExclusaoCPU';
@@ -9,11 +9,12 @@ interface AbaTabelaCPUsProps {
   activeObra: Obra | null;
   onSelectCpu: (cpuId: string) => void;
   onDeleteCpu?: (cpuId: string) => Promise<void>;
+  onOpenImportModal?: () => void;
 }
 
 type SortCol = 'code' | 'nome' | 'unidade' | 'quantidade' | 'vendaUnt' | 'vendaTotal' | 'custoUnt' | 'custoTotal' | 'fcd';
 
-export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, onSelectCpu, onDeleteCpu }) => {
+export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, onSelectCpu, onDeleteCpu, onOpenImportModal }) => {
   const [filterText, setFilterText] = useState('');
   const [sortCol, setSortCol] = useState<SortCol>('code');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -109,9 +110,20 @@ export const AbaTabelaCPUs: React.FC<AbaTabelaCPUsProps> = ({ cpus, activeObra, 
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {onOpenImportModal && (
+              <button
+                onClick={onOpenImportModal}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer active:scale-95"
+                title="Importar base de dados e composições de CPUs"
+              >
+                <Database className="w-4 h-4" />
+                <span>Importar BD / CSV</span>
+              </button>
+            )}
+
             <button
               onClick={() => exportarListaCPUs(cpus, activeObra || undefined)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow transition flex items-center gap-1.5 whitespace-nowrap"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>Exportar Lista</span>

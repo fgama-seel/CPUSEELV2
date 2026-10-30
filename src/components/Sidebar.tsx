@@ -32,6 +32,7 @@ interface SidebarProps {
   onSelectTab: (tab: 'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'dashboard') => void;
   onOpenModalNovaObra: () => void;
   onOpenModalNovaCPU: () => void;
+  onOpenModalImportarBD?: () => void;
   onCloseMobile: () => void;
   onOpenModalExcluirObra?: (obra: Obra) => void;
 }
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   onOpenModalNovaObra,
   onOpenModalNovaCPU,
+  onOpenModalImportarBD,
   onCloseMobile,
   onOpenModalExcluirObra
 }) => {
@@ -288,14 +290,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>CPUs da Obra ({filteredCpus.length})</span>
         </div>
 
-        <button
-          onClick={onOpenModalNovaCPU}
-          className="text-blue-400 hover:text-blue-300 text-xs font-bold px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-750 transition flex items-center gap-1 border border-slate-700"
-          title="Cadastrar Nova CPU nesta Obra"
-        >
-          <PlusCircle className="w-3.5 h-3.5" />
-          <span>+ Novo</span>
-        </button>
+        <div className="flex items-center gap-1.5">
+          {onOpenModalImportarBD && (
+            <button
+              onClick={onOpenModalImportarBD}
+              className="text-emerald-400 hover:text-emerald-300 text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-950/60 hover:bg-emerald-900/60 transition flex items-center gap-1 border border-emerald-800/60 cursor-pointer"
+              title="Importar Base de CPUs e Insumos (CSV / Excel)"
+            >
+              <Database className="w-3 h-3" />
+              <span>Importar</span>
+            </button>
+          )}
+
+          <button
+            onClick={onOpenModalNovaCPU}
+            className="text-blue-400 hover:text-blue-300 text-xs font-bold px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-750 transition flex items-center gap-1 border border-slate-700 cursor-pointer"
+            title="Cadastrar Nova CPU nesta Obra"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>+ Novo</span>
+          </button>
+        </div>
       </div>
 
       {/* CPU Search Filter */}

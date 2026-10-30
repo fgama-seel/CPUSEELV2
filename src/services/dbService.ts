@@ -429,4 +429,70 @@ export async function deleteObra(obraId: string): Promise<{ deletedCpus: number;
   }
 }
 
+// Batch import CPUs and Insumos into a specific Obra with deterministic IDs and chunking
+export async function batchImportCPUsAndInsumos(
+  obraId: string,
+  cpusList: Omit<CPU, 'id' | 'obraId'>[],
+  insumosList: InsumoBase[],
+  onProgress?: (current: number, total: number) => void
+): Promise<{ cpusImportadas: number; insumosImportados: number }> {
+  let cpusCount = 0;
+  let insumosCount = 0;
+  const totalItems = cpusList.length + insumosList.length;
+  let processed = 0;
+
+  // 1. Salvar Insumos no Banco de Insumos da Obra
+  for (const ins of insumosList) {
+    const sanitizedInsCode = (ins.id_insumo || ins.descricao).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const docId = `ins-${obraId}-${sanitizedInsCode}`;
+    const docRef = doc(db, 'bancoInsumos', docId);
+    await setDoc(
+      docRef,
+      {
+        ...ins,
+        id: docId,
+        id_insumo: ins.id_insumo || sanitizedInsCode,
+        obraId,
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
+    insumosCount++;
+    processed++;
+    if (onProgress) onProgress(processed, totalItems);
+  }
+
+  // 2. Salvar CPUs na Obra
+  for (const cpuData of cpusList) {
+    const sanitizedCode = cpuData.code.replace(/[^a-zA-Z0-9_-]/g, '') || `${Date.now()}`;
+    const customId = `cpu-${obraId}-${sanitizedCode}`;
+    const docRef = doc(db, 'cpus', customId);
+
+    await setDoc(
+      docRef,
+      {
+        ...cpuData,
+        id: customId,
+        obraId,
+        insumos: ordenarInsumosCPU(cpuData.insumos || []),
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
+    cpusCount++;
+    processed++;
+    if (onProgress) onProgress(processed, totalItems);
+  }
+
+  firestoreTracker.logOperation(
+    'WRITE',
+    'cpus',
+    cpusCount + insumosCount,
+    `Carga em lote de ${cpusCount} CPUs e ${insumosCount} Insumos na Obra ${obraId}`
+  );
+
+  return { cpusImportadas: cpusCount, insumosImportados: insumosCount };
+}
+
+
 
