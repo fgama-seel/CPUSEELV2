@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PieChart,
   Coins,
@@ -15,11 +15,13 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
-  Trash2
+  Trash2,
+  Briefcase,
+  ArrowRight
 } from 'lucide-react';
-import { Obra, CPU } from '../types';
+import { Obra, CPU, ItemCustoIndireto } from '../types';
 import { formatMoney } from '../lib/excelExport';
-import { saveObra } from '../services/dbService';
+import { saveObra, subscribeCustosIndiretos } from '../services/dbService';
 import { ModalConfigOrcamento } from './ModalConfigOrcamento';
 import { ModalImportarBD } from './ModalImportarBD';
 
@@ -29,6 +31,7 @@ interface AbaResumoProps {
   onRefresh: () => void;
   isSuperAdmin?: boolean;
   onOpenModalExcluirObra?: (obra: Obra) => void;
+  onSelectTab?: (tab: any) => void;
 }
 
 export const AbaResumo: React.FC<AbaResumoProps> = ({
@@ -36,17 +39,25 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
   cpus,
   onRefresh,
   isSuperAdmin,
-  onOpenModalExcluirObra
+  onOpenModalExcluirObra,
+  onSelectTab
 }) => {
-  const [editingIndireto, setEditingIndireto] = useState(false);
-  const [indiretoValue, setIndiretoValue] = useState<number>(activeObra?.custoIndiretoAtual || 0);
-
   const [editingFatDireto, setEditingFatDireto] = useState(false);
   const [fatDiretoValue, setFatDiretoValue] = useState<number>(activeObra?.faturamentoDiretoAtual || 0);
 
+  const [itensIndiretos, setItensIndiretos] = useState<ItemCustoIndireto[]>([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showCpuTable, setShowCpuTable] = useState(true);
+
+  // Subscribe to live indirect cost items from Firestore
+  useEffect(() => {
+    if (!activeObra) return;
+    const unsub = subscribeCustosIndiretos(activeObra.id, (list) => {
+      setItensIndiretos(list);
+    });
+    return () => unsub();
+  }, [activeObra?.id]);
 
   if (!activeObra) {
     return (
@@ -60,8 +71,9 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
 
   const bdiObra = activeObra.bdi ?? 25;
 
-  // Calculate live values from active CPUs
+  // Separate CPUs between Direct and Indirect
   let custoDiretoCalculado = 0;
+  let custoIndiretoCpuCalculado = 0;
   let vendaTotalCalculada = 0;
 
   const cpusCalculadas = cpus.map((cpu) => {
@@ -82,7 +94,11 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
     const custoTotalCpu = custoUnt * qtd;
     const vendaTotalCpu = precoVendaUnt * qtd;
 
-    custoDiretoCalculado += custoTotalCpu;
+    if (cpu.isCustoIndireto) {
+      custoIndiretoCpuCalculado += custoTotalCpu;
+    } else {
+      custoDiretoCalculado += custoTotalCpu;
+    }
     vendaTotalCalculada += vendaTotalCpu;
 
     return {
@@ -96,10 +112,36 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
     };
   });
 
+  // Calculate items from indirect cost catalogue (Adm Local, Equipamentos, Canteiro, Diversos)
+  const totalItensIndiretosAvulsos = itensIndiretos.reduce(
+    (acc, item) => acc + (Number(item.custoTotal) || 0),
+    0
+  );
+
+  // Calculate Corporate and Commercial Fees if configured
+  const taxas = activeObra.taxasCorporativas;
+  let totalTaxasCorporativas = 0;
+  if (taxas) {
+    totalTaxasCorporativas =
+      (vendaTotalCalculada * ((taxas.custoComercialPerc || 0) / 100)) +
+      (vendaTotalCalculada * ((taxas.seguroRiscoEngenhariaPerc || 0) / 100)) +
+      (vendaTotalCalculada * ((taxas.custoAdmUNsPerc || 0) / 100)) +
+      (vendaTotalCalculada * ((taxas.taxaPortalPerc || 0) / 100)) +
+      (custoDiretoCalculado * ((taxas.riscoInflacionarioPerc || 0) / 100)) +
+      (custoDiretoCalculado * ((taxas.riscoContingenciasPerc || 0) / 100));
+  }
+
+  // Live consolidated Total Indirect Cost (CPUs Indiretas + Itens Indiretos + Taxas Corporativas)
+  const custoIndiretoTotalCalculado =
+    custoIndiretoCpuCalculado +
+    totalItensIndiretosAvulsos +
+    totalTaxasCorporativas;
+
   const fatDireto = editingFatDireto ? fatDiretoValue : (activeObra.faturamentoDiretoAtual || 0);
   const vendaSemFat = Math.max(0, vendaTotalCalculada - fatDireto);
 
-  const custoIndireto = editingIndireto ? indiretoValue : (activeObra.custoIndiretoAtual || 0);
+  // Automatic Indirect Cost replacing manual input
+  const custoIndireto = custoIndiretoTotalCalculado;
   const custoTotal = custoDiretoCalculado + custoIndireto;
 
   // Taxes calculation on Venda Sem Faturamento using active Obra tax aliquots
@@ -130,16 +172,6 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
     vendaLiquida: 44762094.84,
     resultado: 9790581.84,
     margem: 21.87
-  };
-
-  const handleSaveIndireto = async () => {
-    if (!activeObra) return;
-    const updatedObra: Obra = {
-      ...activeObra,
-      custoIndiretoAtual: Number(indiretoValue) || 0
-    };
-    await saveObra(updatedObra);
-    setEditingIndireto(false);
   };
 
   const handleSaveFatDireto = async () => {
@@ -176,7 +208,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
               <span>Visão Geral de Custos e Desvios - {activeObra.nome}</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Valores calculados em tempo real a partir das CPUs do Firestore comparados ao Orçamento Original do Contrato.
+              Valores calculados em tempo real a partir das CPUs e Custos Indiretos consolidados no Firestore.
             </p>
           </div>
 
@@ -304,7 +336,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
             </div>
           </div>
 
-          {/* Card 2: Estrutura de Custos */}
+          {/* Card 2: Estrutura de Custos (com Indireto Automático) */}
           <div className="bg-white rounded-xl shadow-sm p-5 border-t-4 border-amber-500">
             <h4 className="font-bold text-amber-900 border-b border-amber-100 pb-2.5 mb-4 flex items-center gap-2 text-sm">
               <Wrench className="w-4 h-4 text-amber-600" />
@@ -313,7 +345,12 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
 
             {/* Custo Direto Total CPU */}
             <div className="flex justify-between items-start mb-3 border-b border-slate-100 pb-2.5">
-              <span className="text-slate-600 font-medium text-xs">Custo Direto Total CPU</span>
+              <div>
+                <span className="text-slate-600 font-medium text-xs block">Custo Direto Total (CPUs Diretas)</span>
+                <span className="text-[10px] text-slate-400">
+                  {cpus.filter((c) => !c.isCustoIndireto).length} composições diretas
+                </span>
+              </div>
               <div className="text-right">
                 <div className="font-bold text-base text-slate-800 leading-none">
                   {formatMoney(custoDiretoCalculado)}
@@ -325,46 +362,39 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
               </div>
             </div>
 
-            {/* Custo Indireto Total */}
-            <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-600 font-medium text-xs">Custo Indireto Total</span>
-                {!editingIndireto ? (
+            {/* Custo Indireto Total - Cálculo 100% Automático Integrado */}
+            <div className="flex justify-between items-start mb-3 border-b border-slate-100 pb-2.5 bg-amber-50/50 p-2.5 rounded-lg border border-amber-200">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-amber-950 font-bold text-xs">Custo Indireto Total</span>
+                  <span className="text-[9px] bg-amber-200 text-amber-900 font-black px-1.5 py-0.2 rounded uppercase">
+                    Automático
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1 space-y-0.5">
+                  <div>• CPUs Indiretas: <strong className="text-slate-700">{formatMoney(custoIndiretoCpuCalculado)}</strong></div>
+                  <div>• Canteiro, MO e Diversos: <strong className="text-slate-700">{formatMoney(totalItensIndiretosAvulsos)}</strong></div>
+                  {totalTaxasCorporativas > 0 && (
+                    <div>• Taxas Corporativas: <strong className="text-slate-700">{formatMoney(totalTaxasCorporativas)}</strong></div>
+                  )}
+                </div>
+
+                {onSelectTab && (
                   <button
-                    onClick={() => {
-                      setIndiretoValue(activeObra.custoIndiretoAtual || 0);
-                      setEditingIndireto(true);
-                    }}
-                    className="text-amber-600 hover:text-amber-800 p-0.5"
-                    title="Editar Custo Indireto"
+                    onClick={() => onSelectTab('indiretos')}
+                    className="text-[10px] font-bold text-amber-800 hover:text-amber-950 mt-1.5 flex items-center gap-1 underline cursor-pointer"
                   >
-                    <Edit2 className="w-3 h-3" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleSaveIndireto}
-                    className="bg-amber-600 text-white p-0.5 rounded"
-                    title="Salvar"
-                  >
-                    <Check className="w-3 h-3" />
+                    <span>Ver detalhes na aba Custos Indiretos</span>
+                    <ArrowRight className="w-3 h-3" />
                   </button>
                 )}
               </div>
 
               <div className="text-right">
-                {editingIndireto ? (
-                  <input
-                    type="number"
-                    value={indiretoValue}
-                    onChange={(e) => setIndiretoValue(Number(e.target.value) || 0)}
-                    className="w-32 text-right border p-1 rounded font-bold text-xs bg-white text-amber-900"
-                  />
-                ) : (
-                  <div className="font-bold text-base text-slate-800 leading-none">
-                    {formatMoney(custoIndireto)}
-                  </div>
-                )}
-                <div className="text-[11px] text-slate-400 mt-1">
+                <div className="font-black text-base text-amber-950 leading-none">
+                  {formatMoney(custoIndireto)}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1">
                   Orçado: <span>{formatMoney(orig.custoIndireto)}</span>{' '}
                   {renderDiff(custoIndireto, orig.custoIndireto, true)}
                 </div>
@@ -373,7 +403,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
 
             {/* Custo Total Global */}
             <div className="flex justify-between items-start mt-4 pt-3 border-t border-slate-200">
-              <span className="font-bold text-slate-700 text-xs">Custo Total Global</span>
+              <span className="font-bold text-slate-700 text-xs">Custo Total Global (Direto + Indireto)</span>
               <div className="text-right">
                 <div className="font-black text-lg text-amber-600 leading-none">
                   {formatMoney(custoTotal)}
@@ -548,6 +578,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
                   <tr className="bg-slate-800 text-white text-[11px] uppercase tracking-wider">
                     <th className="p-3 border-b border-slate-700 w-28">Código</th>
                     <th className="p-3 border-b border-slate-700">Serviço / Composição</th>
+                    <th className="p-3 text-center border-b border-slate-700 w-24">Classificação</th>
                     <th className="p-3 text-center border-b border-slate-700 w-20">Unid.</th>
                     <th className="p-3 text-right border-b border-slate-700 w-28">Qtd Prevista</th>
                     <th className="p-3 text-right border-b border-slate-700 w-36">Preço Venda Unit.</th>
@@ -558,7 +589,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
                 <tbody className="text-xs divide-y divide-slate-200">
                   {cpusCalculadas.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-slate-500 italic">
+                      <td colSpan={8} className="p-8 text-center text-slate-500 italic">
                         Nenhuma CPU cadastrada nesta obra.
                       </td>
                     </tr>
@@ -567,6 +598,17 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
                       <tr key={cpu.id} className="hover:bg-slate-50 transition">
                         <td className="p-3 font-mono font-bold text-slate-600">{cpu.code}</td>
                         <td className="p-3 font-bold text-slate-800">{cpu.nome}</td>
+                        <td className="p-3 text-center">
+                          {cpu.isCustoIndireto ? (
+                            <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-2 py-0.5 rounded border border-purple-200 uppercase">
+                              Indireto
+                            </span>
+                          ) : (
+                            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-200 uppercase">
+                              Direto
+                            </span>
+                          )}
+                        </td>
                         <td className="p-3 text-center text-slate-600 uppercase font-semibold">{cpu.unidade || 'UN'}</td>
                         <td className="p-3 text-right font-mono font-bold text-slate-700">{cpu.qtd.toLocaleString('pt-BR')}</td>
                         <td className="p-3 text-right font-mono font-bold text-indigo-700">
@@ -593,7 +635,7 @@ export const AbaResumo: React.FC<AbaResumoProps> = ({
                 {cpusCalculadas.length > 0 && (
                   <tfoot>
                     <tr className="bg-slate-100 font-extrabold text-slate-900 border-t-2 border-slate-300">
-                      <td colSpan={3} className="p-3 text-right uppercase text-xs">
+                      <td colSpan={4} className="p-3 text-right uppercase text-xs">
                         Total Geral do Contrato:
                       </td>
                       <td className="p-3 text-right font-mono text-xs">

@@ -7,7 +7,7 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { Obra, CPU, InsumoBase, UserPermission, Insumo, Comentario } from '../types';
+import { Obra, CPU, InsumoBase, UserPermission, Insumo, Comentario, ItemCustoIndireto, TaxasCorporativasObra, TarefaCronograma } from '../types';
 import { getPendingCPUs, savePendingCPUToCache } from '../lib/pendingCache';
 import { firestoreTracker } from './firestoreTracker';
 import { ordenarInsumosCPU } from '../lib/mochilaDefaults';
@@ -574,5 +574,93 @@ export async function batchImportCPUsAndInsumos(
   return { cpusImportadas: cpusCount, insumosImportados: insumosCount, cpusExcluidas, insumosExcluidos };
 }
 
+// Subscribe to Custos Indiretos da Obra
+export function subscribeCustosIndiretos(obraId: string | null, callback: (itens: ItemCustoIndireto[]) => void) {
+  const colRef = collection(db, 'custosIndiretos');
+  firestoreTracker.updateActiveListeners(1);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const list: ItemCustoIndireto[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as ItemCustoIndireto;
+        const itemObraId = data.obraId;
+        if (!obraId || itemObraId === obraId || (!itemObraId && obraId === 'obra-966')) {
+          list.push({ id: docSnap.id, ...data });
+        }
+      });
+      firestoreTracker.logOperation(
+        'SNAPSHOT',
+        'custosIndiretos',
+        snapshot.size,
+        `Sincronização em tempo real de Custos Indiretos (${list.length} docs)`
+      );
+      callback(list);
+    },
+    (err) => {
+      handleFirestoreError(err, OperationType.GET, 'custosIndiretos');
+    }
+  );
+}
 
+// Salvar Item de Custo Indireto
+export async function saveItemCustoIndireto(item: ItemCustoIndireto): Promise<void> {
+  const docId = item.id || `ind-${item.obraId || 'global'}-${Date.now()}`;
+  const path = `custosIndiretos/${docId}`;
+  try {
+    const docRef = doc(db, 'custosIndiretos', docId);
+    await setDoc(docRef, { ...item, id: docId, updatedAt: new Date().toISOString() }, { merge: true });
+    firestoreTracker.logOperation('WRITE', 'custosIndiretos', 1, `Escrita: Salvar Custo Indireto ${item.descricao}`);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+    throw err;
+  }
+}
 
+// Excluir Item de Custo Indireto
+export async function deleteItemCustoIndireto(id: string): Promise<void> {
+  const path = `custosIndiretos/${id}`;
+  try {
+    await deleteDoc(doc(db, 'custosIndiretos', id));
+    firestoreTracker.logOperation('DELETE', 'custosIndiretos', 1, `Exclusão: Custo Indireto ${id}`);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+    throw err;
+  }
+}
+
+// Salvar lote de Custos Indiretos
+export async function batchSaveCustosIndiretos(obraId: string, itens: ItemCustoIndireto[]): Promise<void> {
+  for (const item of itens) {
+    const docId = item.id || `ind-${obraId}-${item.categoria}-${item.codigo || Date.now()}`;
+    const docRef = doc(db, 'custosIndiretos', docId);
+    await setDoc(docRef, { ...item, id: docId, obraId, updatedAt: new Date().toISOString() }, { merge: true });
+  }
+  firestoreTracker.logOperation('WRITE', 'custosIndiretos', itens.length, `Carga em lote de ${itens.length} Custos Indiretos`);
+}
+
+// Atualizar Taxas Corporativas da Obra
+export async function updateObraTaxasCorporativas(obraId: string, taxas: TaxasCorporativasObra): Promise<void> {
+  const path = `obras/${obraId}`;
+  try {
+    const docRef = doc(db, 'obras', obraId);
+    await setDoc(docRef, { taxasCorporativas: taxas, updatedAt: new Date().toISOString() }, { merge: true });
+    firestoreTracker.logOperation('WRITE', 'obras', 1, `Atualização de Taxas Corporativas na Obra ${obraId}`);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+    throw err;
+  }
+}
+
+// Atualizar Cronograma de Tarefas (MS Project) da Obra
+export async function updateObraCronogramaTarefas(obraId: string, tarefas: TarefaCronograma[]): Promise<void> {
+  const path = `obras/${obraId}`;
+  try {
+    const docRef = doc(db, 'obras', obraId);
+    await setDoc(docRef, { cronogramaTarefas: tarefas, updatedAt: new Date().toISOString() }, { merge: true });
+    firestoreTracker.logOperation('WRITE', 'obras', 1, `Atualização de Cronograma MS Project (${tarefas.length} tarefas) na Obra ${obraId}`);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+    throw err;
+  }
+}

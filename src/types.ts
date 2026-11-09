@@ -105,6 +105,8 @@ export interface CPU {
   id: string; // Firestore document ID
   code: string; // E.g. "18010102"
   obraId: string; // Reference to Obra document ID
+  sequencia?: number; // Sequência numérica da Planilha de Quantidades (PQ) (1, 2, 3...)
+  isCustoIndireto?: boolean; // Se true, o custo desta CPU é somado automaticamente no Custo Indireto Total do contrato
   nome: string;
   unidade: string;
   prod_teorica: number;
@@ -119,6 +121,59 @@ export interface CPU {
   comentarios: Comentario[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+export type CategoriaIndireto =
+  | 'ADM_LOCAL_MO'
+  | 'EQUIPAMENTOS_INDIRETOS'
+  | 'CANTEIRO'
+  | 'DIVERSOS_CONSULTORIA'
+  | 'TAXAS_CORPORATIVAS';
+
+export interface ItemCustoIndireto {
+  id: string;
+  obraId?: string;
+  categoria: CategoriaIndireto;
+  codigo?: string;
+  descricao: string;
+  unidade: string;
+  quantidade: number;
+  precoUnitario: number;
+  custoTotal: number;
+  combustivelUnitario?: number; // Para veículos/equipamentos
+  distribuicaoMensal?: Record<string, number>; // mês (ex: "jan/26") -> quantidade
+  observacoes?: string;
+}
+
+export interface TaxasCorporativasObra {
+  custoComercialPerc: number; // ex: 0.35%
+  seguroRiscoEngenhariaPerc: number; // ex: 0.75%
+  custoAdmUNsPerc: number; // ex: 0.30%
+  taxaPortalPerc: number; // ex: 0.00%
+  riscoInflacionarioPerc: number; // ex: 1.59%
+  riscoContingenciasPerc: number; // ex: 1.21%
+  bdiReferenciaPerc?: number; // ex: 26.42%
+  admCentralPerc?: number; // ex: 11.98%
+  custoFinanceiroEmpresaPerc?: number; // ex: 2.17%
+  custoFinanceiroNegocioPerc?: number; // ex: 0.02%
+  lucroPerc?: number; // ex: 12.25%
+  impostosPerc?: number; // ex: 9.20%
+}
+
+export interface TarefaCronograma {
+  id: string;
+  idExclusiva?: number | string; // Unique ID do MS Project (imutável)
+  idLinha?: number; // ID sequencial da linha no Project (1, 2, 3...)
+  wbs?: string; // Código EDT / WBS (ex: "1.1", "1.2.3")
+  nivelEstruturaTopicos: number; // Outline Level do MS Project (1, 2, 3...)
+  nome: string;
+  inicio: string;
+  termino: string;
+  duracaoDias: number;
+  percentualConcluido?: number;
+  custoPrevisto?: number;
+  recursos?: string;
+  isResumo?: boolean;
 }
 
 export interface OrcamentoOriginal {
@@ -152,6 +207,8 @@ export interface Obra {
     cofinsPerc: number;
     issPerc: number;
   };
+  taxasCorporativas?: TaxasCorporativasObra;
+  cronogramaTarefas?: TarefaCronograma[];
   orcamentoOriginal: OrcamentoOriginal;
   emailsAcesso?: string[];
   mochilaMO?: MochilaMOConfig;

@@ -16,6 +16,9 @@ service cloud.firestore {
     match /userPermissions/{userDocId} {
       allow read, write: if true;
     }
+
+    match /custosIndiretos/{itemId} {
+      allow read, write: if true;
+    }
   }
 }
-

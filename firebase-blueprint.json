@@ -108,6 +108,23 @@
         "aprovadoPor": { "type": "string" }
       },
       "required": ["email", "status", "role"]
+    },
+    "custosIndiretos": {
+      "title": "Custos Indiretos",
+      "description": "Itens de apoio, canteiro, mão de obra indireta e equipamentos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "obraId": { "type": "string" },
+        "categoria": { "type": "string" },
+        "codigo": { "type": "string" },
+        "descricao": { "type": "string" },
+        "unidade": { "type": "string" },
+        "quantidade": { "type": "number" },
+        "precoUnitario": { "type": "number" },
+        "custoTotal": { "type": "number" }
+      },
+      "required": ["id", "obraId", "categoria", "descricao", "custoTotal"]
     }
   }
 }

@@ -27,9 +27,11 @@ import { ordenarInsumosCPU } from './lib/mochilaDefaults';
 
 // Components
 import { Header } from './components/Header';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, TabKey } from './components/Sidebar';
 import { AbaResumo } from './components/AbaResumo';
 import { AbaTabelaCPUs } from './components/AbaTabelaCPUs';
+import { AbaCustosIndiretos } from './components/AbaCustosIndiretos';
+import { AbaRelatoriosGerenciais } from './components/AbaRelatoriosGerenciais';
 import { AbaABCInsumos } from './components/AbaABCInsumos';
 import { AbaInsumosCadastrados } from './components/AbaInsumosCadastrados';
 import { AbaGestaoAcessos } from './components/AbaGestaoAcessos';
@@ -61,13 +63,14 @@ export default function App() {
   const [bancoInsumos, setBancoInsumos] = useState<InsumoBase[]>([]);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'resumo' | 'tabela' | 'abc' | 'insumos' | 'acessos' | 'firestore' | 'dashboard'>('resumo');
+  const [activeTab, setActiveTab] = useState<TabKey>('resumo');
 
   // Pending Changes State
   const [pendingChanges, setPendingChanges] = useState<boolean>(() => Object.keys(getPendingCPUs()).length > 0);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Mobile Sidebar
+  // Sidebar Collapse & Mobile State
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [isOpenMobileSidebar, setIsOpenMobileSidebar] = useState<boolean>(false);
 
   // Modals State
@@ -335,6 +338,8 @@ export default function App() {
               isAdmin={isAdmin}
               isSuperAdmin={isSuperAdmin}
               isOpenMobile={isOpenMobileSidebar}
+              isCollapsed={isSidebarCollapsed}
+              onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               onSelectObra={handleSelectObra}
               onSelectCpu={handleSelectCpu}
               onSelectTab={setActiveTab}
@@ -376,6 +381,7 @@ export default function App() {
                       cpus={cpus}
                       isSuperAdmin={isSuperAdmin}
                       onOpenModalExcluirObra={(obra) => setObraToDelete(obra)}
+                      onSelectTab={setActiveTab}
                       onRefresh={() => {
                         // Triggers re-render
                         setActiveObraId(activeObraId);
@@ -389,7 +395,25 @@ export default function App() {
                       activeObra={activeObra}
                       onSelectCpu={handleSelectCpu}
                       onDeleteCpu={handleDeleteCPU}
+                      onSaveCpu={handleSaveCpu}
                       onOpenImportModal={() => setIsModalImportarBDOpen(true)}
+                    />
+                  )}
+
+                  {activeTab === 'indiretos' && (
+                    <AbaCustosIndiretos
+                      activeObra={activeObra}
+                      cpus={cpus}
+                      onSelectTab={setActiveTab}
+                      onSelectCpu={handleSelectCpu}
+                    />
+                  )}
+
+                  {activeTab === 'relatorios' && (
+                    <AbaRelatoriosGerenciais
+                      activeObra={activeObra}
+                      cpus={cpus}
+                      onSelectTab={setActiveTab}
                     />
                   )}
 

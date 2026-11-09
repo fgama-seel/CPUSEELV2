@@ -321,3 +321,69 @@ export function exportarABC(abcInsumos: ABCInsumoItem[], obra?: Obra) {
     : `ABC_Insumos_${new Date().toISOString().split('T')[0]}.xlsx`;
   XLSX.writeFile(wb, filename);
 }
+
+export function exportarCurvaS(dadosCurvaS: any[], obra?: Obra | null) {
+  const dadosExcel = dadosCurvaS.map((d) => ({
+    Mês: d.mes,
+    'Nº Mês': d.num,
+    '% Desembolso Mês': Number(d.percDesembolso.toFixed(2)),
+    'Valor Previsto Mês (R$)': d.valorMensal,
+    '% Acumulado': Number(d.acumPerc.toFixed(2)),
+    'Valor Acumulado (R$)': d.acumValor
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(dadosExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Curva S Físico-Financeiro');
+  const filename = obra
+    ? `Curva_S_Desembolso_${obra.codigo}_${new Date().toISOString().split('T')[0]}.xlsx`
+    : `Curva_S_Desembolso_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+export function exportarHistogramaRecursos(itens: any[], obra?: Obra | null) {
+  const dadosExcel = itens.map((item) => ({
+    Código: item.codigo || '-',
+    'Recurso / Descrição': item.nome,
+    Categoria: item.categoria,
+    Natureza: item.natureza,
+    Unidade: item.unidade,
+    'Qtd Total Prevista': item.quantidade,
+    'Custo Unitário (R$)': item.custoUnitario,
+    'Custo Total Previsto (R$)': item.custoTotal,
+    '% do Custo Total': Number((item.percTotal || 0).toFixed(2))
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(dadosExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Histograma de Recursos');
+  const filename = obra
+    ? `Histograma_Recursos_${obra.codigo}_${new Date().toISOString().split('T')[0]}.xlsx`
+    : `Histograma_Recursos_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+export function exportarCronogramaProject(tarefas: any[], obra?: Obra | null) {
+  const dadosExcel = tarefas.map((t) => ({
+    'ID Exclusiva': t.idExclusiva || t.idLinha,
+    ID: t.idLinha,
+    EDT: t.wbs || t.idLinha,
+    'Nível da Estrutura de Tópicos': t.nivelEstruturaTopicos,
+    'Nome da Tarefa': t.nome,
+    'Duração (dias)': t.duracaoDias,
+    Início: t.inicio,
+    Término: t.termino,
+    '% Concluído': `${t.percentualConcluido ?? 0}%`,
+    'Custo Previsto (R$)': t.custoPrevisto || 0,
+    Recursos: t.recursos || '-'
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(dadosExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Cronograma MS Project');
+  const filename = obra
+    ? `Cronograma_Project_${obra.codigo}_${new Date().toISOString().split('T')[0]}.xlsx`
+    : `Cronograma_Project_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+

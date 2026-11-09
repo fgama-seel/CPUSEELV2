@@ -1,0 +1,6 @@
+{
+  "summary":  "Plano de implementação revisado com a inclusão de Nível de Estrutura de Tópicos (Outline Level para hierarquia WBS/EAP) e ID Exclusiva (Unique ID do MS Project) no modelo de dados, no parser de importação Excel/CSV e na visualização em árvore hierárquica com recuo.",
+  "updatedAt":  "2026-11-09T12:46:54.167877487Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
