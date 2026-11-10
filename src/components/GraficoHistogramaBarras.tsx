@@ -132,8 +132,6 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
   // 1. PROCESSAMENTO DE MÃO DE OBRA INDIRETA (100% REAL)
   const funcoesIndiretas: FuncaoIndiretaDetalhada[] = useMemo(() => {
     const moIndiretaItens = itensIndiretos.filter((i) => i.categoria === 'ADM_LOCAL_MO');
-    const cpusIndiretasMO: CPU[] = cpus.filter((c) => c.isCustoIndireto && c.insumos && c.insumos.some((ins) => (ins.tipo || '').toLowerCase().includes('mão') || (ins.tipo || '').toLowerCase().includes('mo')));
-
     const resultado: FuncaoIndiretaDetalhada[] = [];
 
     // A. Dos itens de Custos Indiretos da Obra
@@ -179,8 +177,26 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
       });
     });
 
-    // B. Das CPUs marcadas como Custo Indireto
+    // B. Das CPUs marcadas como Custo Indireto (isCustoIndireto === true)
+    const cpusIndiretasMO: CPU[] = cpus.filter(
+      (c) => c.isCustoIndireto && c.insumos && c.insumos.some((ins) => (ins.tipo || '').toLowerCase().includes('mão') || (ins.tipo || '').toLowerCase().includes('mo'))
+    );
+
+    const taskMap = new Map<number, ScheduleTask>(scheduleTasks.map((t) => [t.uniqueId, t]));
+    const pqMap = new Map<string, PQItem>(pqItems.map((p) => [p.id, p]));
+
     cpusIndiretasMO.forEach((cpu) => {
+      // Procura tarefas vinculadas a esta CPU indireta
+      const taskLinks = allocationLinks
+        .map((link) => ({ task: taskMap.get(link.taskUniqueId), pqItem: pqMap.get(link.pqItemId) }))
+        .filter((l) => l.task && l.pqItem)
+        .filter((l) => (
+          (cpu.sequencia !== undefined && cpu.sequencia === l.pqItem!.seq) ||
+          cpu.code === l.pqItem!.codigoRecursoProject ||
+          cpu.id === l.pqItem!.id ||
+          cpu.nome === l.pqItem!.descricao
+        ));
+
       cpu.insumos.forEach((ins) => {
         const tNorm = (ins.tipo || '').toLowerCase();
         if (!tNorm.includes('mão') && !tNorm.includes('mo')) return;
@@ -189,13 +205,32 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
         const isVerba = (ins.unid || '').toUpperCase().includes('MES') || (ins.unid || '').toUpperCase().includes('GB');
         const coef = Number(ins.coef) || 1;
         const mapa: Record<string, number> = {};
-        dados.forEach((d) => {
-          mapa[d.mesAno] = Math.max(1, Math.round(coef));
-        });
+
+        if (taskLinks.length > 0) {
+          taskLinks.forEach(({ task }) => {
+            if (!task || !task.startDate || !task.finishDate) return;
+            const dtIni = new Date(task.startDate + 'T00:00:00');
+            const dtFim = new Date(task.finishDate + 'T23:59:59');
+            if (isNaN(dtIni.getTime()) || isNaN(dtFim.getTime())) return;
+
+            dados.forEach((d) => {
+              const [ano, mes] = d.sortKey.split('-').map(Number);
+              const monthStart = new Date(ano, mes - 1, 1);
+              const monthEnd = new Date(ano, mes, 0);
+              if (monthEnd >= dtIni && monthStart <= dtFim) {
+                mapa[d.mesAno] = (mapa[d.mesAno] || 0) + Math.max(1, Math.round(coef));
+              }
+            });
+          });
+        } else {
+          dados.forEach((d) => {
+            mapa[d.mesAno] = Math.max(1, Math.round(coef));
+          });
+        }
 
         resultado.push({
           id,
-          cargo: ins.descricao,
+          cargo: `${ins.descricao} (CPU Indireta: ${cpu.code || cpu.nome})`,
           qtdMax: Math.max(0, ...Object.values(mapa)),
           isVerbaMensal: isVerba,
           efetivoMensal: mapa
@@ -204,7 +239,7 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
     });
 
     return resultado;
-  }, [itensIndiretos, cpus, dados]);
+  }, [itensIndiretos, cpus, dados, scheduleTasks, pqItems, allocationLinks]);
 
   // 2. PROCESSAMENTO DINÂMICO DE MÃO DE OBRA DIRETA E EQUIPAMENTOS (100% REAL)
   const { funcoesDiretas, equipamentosDetalhados } = useMemo(() => {
@@ -265,7 +300,7 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
             c.id === pqItem.id ||
             c.nome === pqItem.descricao
         );
-        if (!cpu || !cpu.insumos) return;
+        if (!cpu || !cpu.insumos || cpu.isCustoIndireto) return; // EXCLUI CPUS INDIRETA DO GRUPO DIRETO!
 
         // Checagem de Produtividade: CPU vs MS Project
         const prodEfetiva = (Number(cpu.prod_teorica) || 1) * (Number(cpu.praticabilidade) || 1);
@@ -375,7 +410,7 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
             c.id === pq.id ||
             c.nome === pq.descricao
         );
-        if (!cpu || !cpu.insumos) return;
+        if (!cpu || !cpu.insumos || cpu.isCustoIndireto) return;
 
         cpu.insumos.forEach((ins) => {
           const tipoNorm = (ins.tipo || '').toLowerCase();
