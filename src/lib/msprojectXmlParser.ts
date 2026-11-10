@@ -1,25 +1,16 @@
-import { ScheduleTask } from '../types';
+import { ScheduleTask, AllocationLink, PQItem } from '../types';
+
+export interface ParseXmlResult {
+  tasks: ScheduleTask[];
+  allocationLinks: AllocationLink[];
+}
 
 /**
  * PARSER PARA O FORMATO NATIVO XML DO MICROSOFT PROJECT (*.xml)
- * O MS Project salva projetos completos em XML com a seguinte estrutura:
- * <Project xmlns="http://schemas.microsoft.com/project">
- *   <Tasks>
- *     <Task>
- *       <UID>159</UID>
- *       <ID>80</ID>
- *       <Name>Perfuração em Rocha</Name>
- *       <WBS>1.1.1.2.2.2.16.1</WBS>
- *       <OutlineLevel>8</OutlineLevel>
- *       <Start>2026-03-02T07:00:00</Start>
- *       <Finish>2026-03-12T17:00:00</Finish>
- *       <Duration>PT70H0M0S</Duration>
- *       <Summary>0</Summary>
- *     </Task>
- *   </Tasks>
- * </Project>
+ * Extrai a lista de tarefas, datas, durações e vincula automaticamente os Recursos/Assignments
+ * cadastrados no MS Project aos itens correspondentes da PQ (Planilha de Quantidades).
  */
-export function parseMsProjectXml(xmlText: string): ScheduleTask[] {
+export function parseMsProjectXml(xmlText: string, pqItems: PQItem[] = []): ParseXmlResult {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
 
@@ -28,8 +19,24 @@ export function parseMsProjectXml(xmlText: string): ScheduleTask[] {
     throw new Error('Arquivo XML inválido ou corrompido: ' + parserError[0].textContent);
   }
 
+  // 1. Extração do Catálogo de Recursos do MS Project (<Resources>)
+  const resourcesMap = new Map<string, { uid: string; name: string; code: string }>();
+  const resourceNodes = xmlDoc.getElementsByTagName('Resource');
+  for (let r = 0; r < resourceNodes.length; r++) {
+    const resNode = resourceNodes[r];
+    const getResVal = (tag: string) => resNode.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
+    const uid = getResVal('UID');
+    const name = getResVal('Name');
+    const code = getResVal('Code') || getResVal('Text1') || name;
+    if (uid && (name || code)) {
+      resourcesMap.set(uid, { uid, name, code });
+    }
+  }
+
+  // 2. Extração das Tarefas do MS Project (<Tasks>)
   const tasksNodes = xmlDoc.getElementsByTagName('Task');
   const tasks: ScheduleTask[] = [];
+  const taskResourcesMap = new Map<number, Array<{ resourceName: string; units: number }>>();
 
   for (let i = 0; i < tasksNodes.length; i++) {
     const taskNode = tasksNodes[i];
@@ -47,7 +54,7 @@ export function parseMsProjectXml(xmlText: string): ScheduleTask[] {
     const isSummaryStr = getVal('Summary') || '0';
     const startStr = getVal('Start');
     const finishStr = getVal('Finish');
-    const durationStr = getVal('Duration'); // ex: PT70H0M0S ou PT8H0M0S
+    const durationStr = getVal('Duration');
 
     // Ignora tarefa raiz vazia do Project (UID 0)
     if (!name && uidStr === '0') continue;
@@ -56,20 +63,29 @@ export function parseMsProjectXml(xmlText: string): ScheduleTask[] {
     const outlineLevel = parseInt(outlineLevelStr, 10) || 1;
     const isSummary = isSummaryStr === '1';
 
-    // Converte datas para YYYY-MM-DD
     const formatDate = (isoString: string): string => {
       if (!isoString) return '';
       return isoString.split('T')[0];
     };
 
-    // Extrai duração aproximada em dias úteis a partir de PT...H...
     let workingDaysDuration = 1;
     if (durationStr) {
       const matchHours = durationStr.match(/PT(\d+)H/);
       if (matchHours && matchHours[1]) {
         const hours = parseInt(matchHours[1], 10);
-        workingDaysDuration = Math.max(1, Math.ceil(hours / 8.8)); // 8.8h por dia útil
+        workingDaysDuration = Math.max(1, Math.ceil(hours / 8.8));
       }
+    }
+
+    // Leitura direta do campo <ResourceNames> da tarefa se presente
+    const resourceNamesStr = getVal('ResourceNames');
+    if (resourceNamesStr) {
+      const names = resourceNamesStr.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+      names.forEach((resName) => {
+        const cleanName = resName.replace(/\[.*?\]/g, '').trim();
+        if (!taskResourcesMap.has(uniqueId)) taskResourcesMap.set(uniqueId, []);
+        taskResourcesMap.get(uniqueId)!.push({ resourceName: cleanName, units: 1 });
+      });
     }
 
     tasks.push({
@@ -86,22 +102,83 @@ export function parseMsProjectXml(xmlText: string): ScheduleTask[] {
       teamsCount: 1,
       workersPerTeam: 4,
       workingDaysDuration,
-      isSummary
+      isSummary,
+      msProjectResourceString: resourceNamesStr || undefined
     });
   }
 
-  return tasks;
+  // 3. Extração dos Vínculos de Atribuição (<Assignments>)
+  const assignmentNodes = xmlDoc.getElementsByTagName('Assignment');
+  for (let a = 0; a < assignmentNodes.length; a++) {
+    const assNode = assignmentNodes[a];
+    const getAssVal = (tag: string) => assNode.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
+    const taskUidStr = getAssVal('TaskUID');
+    const resUidStr = getAssVal('ResourceUID');
+    const unitsStr = getAssVal('Units') || '1.0';
+
+    if (taskUidStr && resUidStr) {
+      const taskUid = parseInt(taskUidStr, 10);
+      const resObj = resourcesMap.get(resUidStr);
+      if (resObj && taskUid) {
+        const units = parseFloat(unitsStr) || 1;
+        if (!taskResourcesMap.has(taskUid)) taskResourcesMap.set(taskUid, []);
+        const currentList = taskResourcesMap.get(taskUid)!;
+        const exists = currentList.some((x) => x.resourceName.toLowerCase() === (resObj.code || resObj.name).toLowerCase());
+        if (!exists) {
+          currentList.push({ resourceName: resObj.code || resObj.name, units });
+        }
+      }
+    }
+  }
+
+  // 4. Geração Automática de AllocationLinks para a Matriz PQ vs Cronograma
+  const allocationLinks: AllocationLink[] = [];
+  let linkSeq = 1;
+
+  if (pqItems.length > 0) {
+    tasks.forEach((task) => {
+      const resList = taskResourcesMap.get(task.uniqueId);
+      if (!resList || resList.length === 0) return;
+
+      resList.forEach(({ resourceName }) => {
+        const cleanResName = resourceName.toLowerCase();
+
+        // Procura correspondência na PQ
+        const matchingPq = pqItems.find((pq) => {
+          if (pq.codigoRecursoProject && cleanResName.includes(pq.codigoRecursoProject.toLowerCase())) return true;
+          if (pq.seq !== undefined && (cleanResName === String(pq.seq) || cleanResName.startsWith(pq.seq + ' '))) return true;
+          if (pq.id && cleanResName.includes(pq.id.toLowerCase())) return true;
+          if (pq.descricao && cleanResName.includes(pq.descricao.toLowerCase())) return true;
+          return false;
+        });
+
+        if (matchingPq) {
+          const qty = task.physicalQuantity || matchingPq.quantidadeOrcada || 1;
+          allocationLinks.push({
+            seq: linkSeq++,
+            pqItemId: matchingPq.id,
+            taskUniqueId: task.uniqueId,
+            allocationRule: 'DIRECT_1_1',
+            calculatedQuantity: qty,
+            totalCostAllocated: qty * (matchingPq.precoUnitarioCustoDireto || 0),
+            totalRevenueAllocated: qty * (matchingPq.precoUnitarioVenda || 0),
+            observacoes: `Vínculo importado do recurso "${resourceName}" do MS Project XML`
+          });
+        }
+      });
+    });
+  }
+
+  return { tasks, allocationLinks };
 }
 
 /**
  * PARSER PARA CSV / TEXTO TABULAR DE TAREFAS
- * Compatível com exportações rápidas de colunas do Excel / MS Project
  */
 export function parseScheduleTasksCsv(csvText: string): ScheduleTask[] {
   const lines = csvText.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
   if (lines.length < 2) return [];
 
-  // Detecta separador (, ou ;)
   const headerLine = lines[0];
   const sep = headerLine.includes(';') ? ';' : ',';
   const headers = headerLine.split(sep).map((h) => h.trim().toLowerCase());

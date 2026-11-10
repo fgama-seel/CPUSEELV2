@@ -35,6 +35,7 @@ interface AbaCronogramaExecutivoProps {
   tasks: ScheduleTask[];
   onUpdateTasks: (tasks: ScheduleTask[]) => void;
   allocationLinks: AllocationLink[];
+  onUpdateAllocationLinks?: (links: AllocationLink[]) => void;
   pqItems: PQItem[];
   recursosConfig?: RecursoProjectConfig[];
   versoes: VersaoCronograma[];
@@ -46,6 +47,7 @@ export const AbaCronogramaExecutivo: React.FC<AbaCronogramaExecutivoProps> = ({
   tasks,
   onUpdateTasks,
   allocationLinks,
+  onUpdateAllocationLinks,
   pqItems,
   recursosConfig,
   versoes,
@@ -189,9 +191,12 @@ export const AbaCronogramaExecutivo: React.FC<AbaCronogramaExecutivoProps> = ({
         if (!text) throw new Error('Arquivo vazio');
 
         let parsedTasks: ScheduleTask[] = [];
+        let xmlLinks: AllocationLink[] = [];
 
         if (fileName.endsWith('.xml')) {
-          parsedTasks = parseMsProjectXml(text);
+          const result = parseMsProjectXml(text, pqItems);
+          parsedTasks = result.tasks;
+          xmlLinks = result.allocationLinks;
         } else {
           parsedTasks = parseScheduleTasksCsv(text);
         }
@@ -202,13 +207,20 @@ export const AbaCronogramaExecutivo: React.FC<AbaCronogramaExecutivoProps> = ({
 
         onUpdateTasks(parsedTasks);
 
+        if (xmlLinks.length > 0 && onUpdateAllocationLinks) {
+          // Mantém links pré-existentes que estão travados e adiciona/atualiza com os links extraídos do XML
+          const lockedLinks = allocationLinks.filter((l) => l.observacoes?.includes('TRAVADO') || l.observacoes?.includes('LOCKED'));
+          const finalLinks = [...lockedLinks, ...xmlLinks];
+          onUpdateAllocationLinks(finalLinks);
+        }
+
         // Cria automaticamente uma versão no histórico
         const dataHora = new Date().toLocaleString('pt-BR');
         const novaVersao: VersaoCronograma = {
           id: `ver-${Date.now()}`,
           obraId: activeObra?.id || 'obra-padrao',
           nome: `Importação ${file.name.substring(0, 30)}`,
-          descricao: `Upload automático em ${dataHora}`,
+          descricao: `Upload automático em ${dataHora} (${xmlLinks.length} recursos vinculados)`,
           nomeArquivo: file.name,
           tipoArquivo: fileName.endsWith('.xml') ? 'xml' : 'csv',
           criadoEm: dataHora,
@@ -217,8 +229,9 @@ export const AbaCronogramaExecutivo: React.FC<AbaCronogramaExecutivoProps> = ({
         };
         onUpdateVersoes([novaVersao, ...versoes]);
 
+        const extraMsg = xmlLinks.length > 0 ? ` e ${xmlLinks.length} recursos pré-vinculados na Matriz PQ!` : '.';
         setUploadSuccess(
-          `Sucesso! ${parsedTasks.length} tarefas importadas do arquivo "${file.name}" e registradas no histórico.`
+          `Sucesso! ${parsedTasks.length} tarefas importadas do arquivo "${file.name}"${extraMsg}`
         );
         setTimeout(() => setUploadSuccess(null), 5000);
       } catch (err: any) {

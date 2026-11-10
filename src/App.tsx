@@ -563,6 +563,7 @@ export default function App() {
                       tasks={scheduleTasks}
                       onUpdateTasks={handleUpdateScheduleTasks}
                       allocationLinks={allocationLinks}
+                      onUpdateAllocationLinks={handleUpdateAllocationLinks}
                       pqItems={pqItems}
                       recursosConfig={recursosConfig}
                       versoes={versoesCronograma}
