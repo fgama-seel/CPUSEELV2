@@ -330,7 +330,32 @@ export interface ParametrosFluxoCaixa {
   mesProducaoOffset?: number; // 0 = Produz no Mês M
   mesFaturamentoOffset?: number; // 1 = Fatura no Mês M+1
   mesRecebimentoOffset?: number; // 2 = Recebe no Mês M+2
-  ajustesMensaisManual?: Record<string, { faturamento?: number; recebimento?: number }>;
+  diaInicioMedicao?: number; // Dia de início do ciclo de medição (ex: 26 do mês anterior ou 1)
+  diaFimMedicao?: number; // Dia de término do ciclo de medição (ex: 25 do mês atual ou 30)
+  ajustesMensaisManual?: Record<
+    string,
+    {
+      faturamento?: number;
+      recebimento?: number;
+      custo?: number;
+      producao?: number;
+      motivo?: string;
+      editadoEm?: string;
+    }
+  >;
+  ajustesRecursosManual?: Record<
+    string,
+    Record<
+      string,
+      {
+        qtd?: number;
+        custo?: number;
+        faturamento?: number;
+        motivo?: string;
+        editadoEm?: string;
+      }
+    >
+  >;
   descontoAdiantamentoPerc: number; // Padrão: 13.0%
   retencaoContratualPerc: number; // Padrão: 5.0%
   impostosPerc: number; // Padrão: 6.65% (PIS + COFINS + ISS)

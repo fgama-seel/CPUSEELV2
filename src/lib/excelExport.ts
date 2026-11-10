@@ -387,3 +387,71 @@ export function exportarCronogramaProject(tarefas: any[], obra?: Obra | null) {
   XLSX.writeFile(wb, filename);
 }
 
+export function exportarHistogramaMensalMatriz(
+  meses: string[],
+  dados: {
+    indireta: number[];
+    direta: number[];
+    equipamentos: number[];
+    total: number[];
+  },
+  obra?: Obra | null
+) {
+  const wsData: any[][] = [
+    ['HISTOGRAMA MENSAL DE RECURSOS - MÃO DE OBRA E EQUIPAMENTOS'],
+    ['OBRA', obra ? `${obra.codigo} - ${obra.nome}` : 'Obra Não Selecionada', 'DATA DE EMISSÃO', new Date().toLocaleDateString('pt-BR')],
+    [],
+    ['CATEGORIA', ...meses]
+  ];
+
+  wsData.push(['INDIRETA (Mão de Obra Apoio)', ...dados.indireta]);
+  wsData.push(['DIRETA (Mão de Obra Campo)', ...dados.direta]);
+  wsData.push(['EQUIPAMENTOS (Pesados e Apoio)', ...dados.equipamentos]);
+  wsData.push(['TOTAL CONTINGENTE / MÊS', ...dados.total]);
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Histograma Mensal');
+  const filename = obra
+    ? `Histograma_Mensal_${obra.codigo}_${new Date().toISOString().split('T')[0]}.xlsx`
+    : `Histograma_Mensal_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+export function exportarUsoRecursosProject(
+  recursosUsage: {
+    recurso: string;
+    tarefa?: string;
+    tipoLinha: string;
+    valoresMes: Record<string, number>;
+    total: number;
+  }[],
+  meses: string[],
+  obra?: Obra | null
+) {
+  const wsData: any[][] = [
+    ['USO DE RECURSOS (MS PROJECT) - DISTRIBUIÇÃO TEMPORAL DE PRODUÇÃO, CUSTO E FATURAMENTO'],
+    ['OBRA', obra ? `${obra.codigo} - ${obra.nome}` : 'Obra', 'DATA', new Date().toLocaleDateString('pt-BR')],
+    [],
+    ['RECURSO / ATIVIDADE', 'TIPO DE DADO', 'TOTAL ACUMULADO', ...meses]
+  ];
+
+  recursosUsage.forEach((item) => {
+    const row = [
+      item.tarefa ? `    ${item.tarefa}` : item.recurso,
+      item.tipoLinha,
+      item.total,
+      ...meses.map((m) => item.valoresMes[m] || 0)
+    ];
+    wsData.push(row);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Uso de Recursos');
+  const filename = obra
+    ? `Uso_Recursos_${obra.codigo}_${new Date().toISOString().split('T')[0]}.xlsx`
+    : `Uso_Recursos_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+

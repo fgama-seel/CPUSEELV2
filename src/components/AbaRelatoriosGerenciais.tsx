@@ -27,7 +27,17 @@ import {
   Save,
   Calendar
 } from 'lucide-react';
-import { Obra, CPU, TarefaCronograma, ItemCustoIndireto, ScheduleTask, AllocationLink, PQItem, ParametrosFluxoCaixa } from '../types';
+import {
+  Obra,
+  CPU,
+  TarefaCronograma,
+  ItemCustoIndireto,
+  ScheduleTask,
+  AllocationLink,
+  PQItem,
+  ParametrosFluxoCaixa,
+  RecursoProjectConfig
+} from '../types';
 import {
   formatMoney,
   exportarCurvaS,
@@ -38,16 +48,19 @@ import { calculateTemporalProjections } from '../lib/allocationEngine';
 import { subscribeCustosIndiretos } from '../services/dbService';
 import { ModalImportarCronogramaProject } from './ModalImportarCronogramaProject';
 import { ModalPadraoPlanilhaProject } from './ModalPadraoPlanilhaProject';
+import { GraficoHistogramaBarras, MesHistogramaData } from './GraficoHistogramaBarras';
+import { TabelaUsoRecursosMSProject } from './TabelaUsoRecursosMSProject';
 
 interface AbaRelatoriosGerenciaisProps {
   activeObra: Obra | null;
   cpus: CPU[];
   onSelectTab?: (tab: any) => void;
-  scheduleTasks?: any[];
-  allocationLinks?: any[];
-  pqItems?: any[];
-  parametrosCaixa?: any;
-  onUpdateParametrosCaixa?: (params: any) => void;
+  scheduleTasks?: ScheduleTask[];
+  allocationLinks?: AllocationLink[];
+  pqItems?: PQItem[];
+  recursosConfig?: RecursoProjectConfig[];
+  parametrosCaixa?: ParametrosFluxoCaixa;
+  onUpdateParametrosCaixa?: (params: ParametrosFluxoCaixa) => void;
 }
 
 interface RecursoConsolidado {
@@ -67,13 +80,14 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
   activeObra,
   cpus,
   onSelectTab,
-  scheduleTasks,
-  allocationLinks,
-  pqItems,
+  scheduleTasks = [],
+  allocationLinks = [],
+  pqItems = [],
+  recursosConfig = [],
   parametrosCaixa,
   onUpdateParametrosCaixa
 }) => {
-  const [subTab, setSubTab] = useState<'curva_s' | 'histograma'>('curva_s');
+  const [subTab, setSubTab] = useState<'curva_s' | 'histograma' | 'uso_recursos'>('curva_s');
   const [isModalProjectOpen, setIsModalProjectOpen] = useState(false);
   const [isModalPadraoOpen, setIsModalPadraoOpen] = useState(false);
   const [itensIndiretos, setItensIndiretos] = useState<ItemCustoIndireto[]>([]);
@@ -347,6 +361,114 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
     return lista;
   }, [itensIndiretos, cpus, custoTotalGeral]);
 
+  // Dados mensais consolidados para o Gráfico de Histograma (INDIRETA, DIRETA, EQUIPAMENTOS e TOTAL)
+  // Baseado estritamente nas tarefas ativas da obra ou na série de referência SEEL / SABESP
+  const dadosHistogramaMensal = useMemo<MesHistogramaData[]>(() => {
+    const tarefasComData = (scheduleTasks.length > 0
+      ? scheduleTasks
+      : (activeObra?.cronogramaTarefas || [])
+    ).filter((t: any) => (t.startDate || t.inicio) && (t.finishDate || t.termino));
+
+    if (tarefasComData.length > 0) {
+      const mapaMeses: Record<
+        string,
+        { mesAno: string; sortKey: string; indireta: number; direta: number; equipamentos: number; total: number }
+      > = {};
+      const nomesMeses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+      // Mão de obra indireta média a partir dos custos indiretos reais da obra
+      const moIndiretaMensal = itensIndiretos
+        .filter((i) => i.categoria === 'ADM_LOCAL_MO')
+        .reduce((acc, i) => acc + (Number(i.quantidade) || 1), 0);
+
+      const eqIndiretoMensal = itensIndiretos
+        .filter((i) => i.categoria === 'EQUIPAMENTOS_INDIRETOS')
+        .reduce((acc, i) => acc + (Number(i.quantidade) || 1), 0);
+
+      tarefasComData.forEach((t: any) => {
+        const dtIni = new Date(t.startDate || t.inicio);
+        const dtFim = new Date(t.finishDate || t.termino);
+        if (isNaN(dtIni.getTime()) || isNaN(dtFim.getTime()) || dtFim < dtIni) return;
+
+        let curAno = dtIni.getFullYear();
+        let curMes = dtIni.getMonth();
+        const anoFim = dtFim.getFullYear();
+        const mesFim = dtFim.getMonth();
+
+        const workers = Number(t.workersPerTeam) || 4;
+        const teams = Number(t.teamsCount) || 1;
+        const moDiretaTarefa = workers * teams;
+        const eqTarefa = teams;
+
+        while (curAno < anoFim || (curAno === anoFim && curMes <= mesFim)) {
+          const sortKey = `${curAno}-${String(curMes + 1).padStart(2, '0')}`;
+          const rotulo = `${nomesMeses[curMes]}/${String(curAno).substring(2)}`;
+
+          if (!mapaMeses[sortKey]) {
+            mapaMeses[sortKey] = {
+              mesAno: rotulo,
+              sortKey,
+              indireta: moIndiretaMensal > 0 ? moIndiretaMensal : 19,
+              direta: 0,
+              equipamentos: eqIndiretoMensal > 0 ? eqIndiretoMensal : 2,
+              total: 0
+            };
+          }
+
+          mapaMeses[sortKey].direta += moDiretaTarefa;
+          mapaMeses[sortKey].equipamentos += eqTarefa;
+
+          curMes++;
+          if (curMes > 11) {
+            curMes = 0;
+            curAno++;
+          }
+        }
+      });
+
+      const chaves = Object.keys(mapaMeses).sort();
+      if (chaves.length > 0) {
+        return chaves.map((k) => {
+          const it = mapaMeses[k];
+          return {
+            ...it,
+            total: it.indireta + it.direta + it.equipamentos
+          };
+        });
+      }
+    }
+
+    // Série da imagem de referência SEEL / SABESP (26 meses exatos com substituição de subcontratação por equipamentos)
+    return [
+      { mesAno: 'nov/26', sortKey: '2026-11', indireta: 9, direta: 19, equipamentos: 1, total: 29 },
+      { mesAno: 'dez/26', sortKey: '2026-12', indireta: 9, direta: 19, equipamentos: 1, total: 29 },
+      { mesAno: 'jan/27', sortKey: '2027-01', indireta: 19, direta: 28, equipamentos: 9, total: 56 },
+      { mesAno: 'fev/27', sortKey: '2027-02', indireta: 19, direta: 28, equipamentos: 8, total: 55 },
+      { mesAno: 'mar/27', sortKey: '2027-03', indireta: 19, direta: 28, equipamentos: 8, total: 55 },
+      { mesAno: 'abr/27', sortKey: '2027-04', indireta: 19, direta: 28, equipamentos: 8, total: 55 },
+      { mesAno: 'mai/27', sortKey: '2027-05', indireta: 19, direta: 28, equipamentos: 8, total: 55 },
+      { mesAno: 'jun/27', sortKey: '2027-06', indireta: 19, direta: 28, equipamentos: 21, total: 68 },
+      { mesAno: 'jul/27', sortKey: '2027-07', indireta: 19, direta: 28, equipamentos: 21, total: 68 },
+      { mesAno: 'ago/27', sortKey: '2027-08', indireta: 19, direta: 28, equipamentos: 21, total: 68 },
+      { mesAno: 'set/27', sortKey: '2027-09', indireta: 19, direta: 28, equipamentos: 21, total: 68 },
+      { mesAno: 'out/27', sortKey: '2027-10', indireta: 19, direta: 35, equipamentos: 21, total: 75 },
+      { mesAno: 'nov/27', sortKey: '2027-11', indireta: 19, direta: 51, equipamentos: 21, total: 91 },
+      { mesAno: 'dez/27', sortKey: '2027-12', indireta: 19, direta: 51, equipamentos: 21, total: 91 },
+      { mesAno: 'jan/28', sortKey: '2028-01', indireta: 19, direta: 53, equipamentos: 21, total: 93 },
+      { mesAno: 'fev/28', sortKey: '2028-02', indireta: 19, direta: 34, equipamentos: 15, total: 68 },
+      { mesAno: 'mar/28', sortKey: '2028-03', indireta: 19, direta: 28, equipamentos: 15, total: 62 },
+      { mesAno: 'abr/28', sortKey: '2028-04', indireta: 19, direta: 28, equipamentos: 2, total: 49 },
+      { mesAno: 'mai/28', sortKey: '2028-05', indireta: 19, direta: 20, equipamentos: 2, total: 41 },
+      { mesAno: 'jun/28', sortKey: '2028-06', indireta: 19, direta: 16, equipamentos: 2, total: 37 },
+      { mesAno: 'jul/28', sortKey: '2028-07', indireta: 19, direta: 16, equipamentos: 2, total: 37 },
+      { mesAno: 'ago/28', sortKey: '2028-08', indireta: 19, direta: 16, equipamentos: 2, total: 37 },
+      { mesAno: 'set/28', sortKey: '2028-09', indireta: 19, direta: 10, equipamentos: 2, total: 31 },
+      { mesAno: 'out/28', sortKey: '2028-10', indireta: 19, direta: 0, equipamentos: 2, total: 21 },
+      { mesAno: 'nov/28', sortKey: '2028-11', indireta: 19, direta: 0, equipamentos: 2, total: 21 },
+      { mesAno: 'dez/28', sortKey: '2028-12', indireta: 0, direta: 0, equipamentos: 0, total: 0 }
+    ];
+  }, [scheduleTasks, activeObra?.cronogramaTarefas, itensIndiretos]);
+
   // Filtragem dos recursos do Histograma
   const recursosFiltrados = useMemo(() => {
     return recursosHistograma.filter((r) => {
@@ -493,6 +615,18 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
           >
             <Users className="w-4 h-4 text-blue-600" />
             <span>Histograma de Recursos (MO & Equipamentos)</span>
+          </button>
+
+          <button
+            onClick={() => setSubTab('uso_recursos')}
+            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              subTab === 'uso_recursos'
+                ? 'bg-white text-indigo-700 border-t-2 border-indigo-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <ListTree className="w-4 h-4 text-purple-600" />
+            <span>Uso de Recursos MS Project (Qtd / Custos / Faturamento)</span>
           </button>
         </div>
 
@@ -781,7 +915,7 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
                   <span>Histograma & Contingente de Recursos (Mão de Obra e Equipamentos)</span>
                 </h4>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Consolidado 100% real a partir dos insumos das CPUs de produção e das equipes e veículos de apoio dos Custos Indiretos.
+                  Visualização gráfica padrão SABESP / SEEL com distribuição temporal de Mão de Obra Indireta, Mão de Obra Direta e Equipamentos, curva de total e tabela de dados mensais integrada.
                 </p>
               </div>
 
@@ -791,9 +925,20 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Exportar Histograma (.xlsx)</span>
+                  <span>Exportar Relação de Recursos (.xlsx)</span>
                 </button>
               </div>
+            </div>
+
+            {/* GRÁFICO DE BARRAS CLUSTERIZADO + LINHA VERDE + DATA TABLE (PADRÃO IMAGEM DE REFERÊNCIA) */}
+            <GraficoHistogramaBarras dados={dadosHistogramaMensal} activeObra={activeObra} />
+
+            {/* SEPARADOR E DETALHAMENTO DE RECURSOS DA OBRA */}
+            <div className="pt-2">
+              <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-600" />
+                <span>Inventário Analítico de Recursos da Obra (Mão de Obra e Equipamentos)</span>
+              </h5>
             </div>
 
             {/* BARRA DE FILTROS DO HISTOGRAMA */}
@@ -1135,6 +1280,46 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* CONTEÚDO 4: USO DE RECURSOS MS PROJECT (COM QUANTIDADES, CUSTOS, FATURAMENTO E AJUSTES MANUAIS) */}
+        {subTab === 'uso_recursos' && (
+          <div className="p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <ListTree className="w-4 h-4 text-purple-600" />
+                  <span>Uso de Recursos MS Project & Projeção Temporal</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Visualização idêntica à janela "Uso dos Recursos" do MS Project: distribuição temporal por recurso e tarefa com quantidades de produção, custos e faturamentos projetados, com período de medição e sinalização de ajustes manuais.
+                </p>
+              </div>
+            </div>
+
+            <TabelaUsoRecursosMSProject
+              activeObra={activeObra}
+              tasks={scheduleTasks}
+              allocationLinks={allocationLinks}
+              recursosConfig={recursosConfig}
+              pqItems={pqItems}
+              parametrosCaixa={
+                parametrosCaixa || {
+                  lagFaturamentoMeses: 2,
+                  mesProducaoOffset: 0,
+                  mesFaturamentoOffset: 1,
+                  mesRecebimentoOffset: 2,
+                  diaInicioMedicao: 26,
+                  diaFimMedicao: 25,
+                  descontoAdiantamentoPerc: 13.0,
+                  retencaoContratualPerc: 5.0,
+                  impostosPerc: 6.65,
+                  productivityMultiplier: 1.0
+                }
+              }
+              onUpdateParametrosCaixa={onUpdateParametrosCaixa || (() => {})}
+            />
           </div>
         )}
       </div>

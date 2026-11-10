@@ -578,6 +578,7 @@ export default function App() {
                       scheduleTasks={scheduleTasks}
                       allocationLinks={allocationLinks}
                       pqItems={pqItems}
+                      recursosConfig={recursosConfig}
                       parametrosCaixa={parametrosCaixa}
                       onUpdateParametrosCaixa={handleUpdateParametrosCaixa}
                     />
