@@ -295,8 +295,8 @@ export const ModalWizardAlocacao: React.FC<ModalWizardAlocacaoProps> = ({
                 onChange={(e) => setSelectedPQId(e.target.value)}
                 className="w-full text-xs font-semibold bg-white border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               >
-                {pqItems.map((p) => (
-                  <option key={p.id} value={p.id}>
+                {pqItems.map((p, idx) => (
+                  <option key={`${p.id}-${idx}`} value={p.id}>
                     {p.id} - {p.descricao} ({p.quantidadeOrcada} {p.unidade})
                   </option>
                 ))}
@@ -463,8 +463,8 @@ export const ModalWizardAlocacao: React.FC<ModalWizardAlocacaoProps> = ({
                     <option value="">-- Puxar da Quantidade Física da Própria Tarefa --</option>
                     {pqItems
                       .filter((p) => p.id !== selectedPQId)
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
+                      .map((p, idx) => (
+                        <option key={`${p.id}-${idx}`} value={p.id}>
                           {p.id} - {p.descricao}
                         </option>
                       ))}

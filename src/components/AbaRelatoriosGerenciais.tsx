@@ -909,8 +909,8 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
                       </td>
                     </tr>
                   ) : (
-                    recursosFiltrados.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50 transition">
+                    recursosFiltrados.map((item, idx) => (
+                      <tr key={`${item.id}-${idx}`} className="hover:bg-slate-50 transition">
                         <td className="p-3 font-mono font-bold text-slate-500">{item.codigo || '-'}</td>
                         <td className="p-3 font-bold text-slate-800">{item.nome}</td>
                         <td className="p-3 text-center">

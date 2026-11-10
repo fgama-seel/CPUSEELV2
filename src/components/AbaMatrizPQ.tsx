@@ -196,12 +196,19 @@ export const AbaMatrizPQ: React.FC<AbaMatrizPQProps> = ({
       return;
     }
 
-    const mapaExistente = new Map(recursosConfig.map((r) => [r.id, r]));
-    const novos: RecursoProjectConfig[] = [...recursosConfig];
+    // Mapa unificado indexado pelo ID do recurso para garantir 100% de unicidade
+    const mapa = new Map<string, RecursoProjectConfig>();
+    recursosConfig.forEach((r) => {
+      if (r && r.id) {
+        mapa.set(r.id, { ...r });
+      }
+    });
 
     // 1. Sincroniza a partir das CPUs
     cpus.forEach((cpu) => {
-      const idKey = cpu.code || cpu.id;
+      const idKey = String(cpu.code || cpu.id || '').trim();
+      if (!idKey) return;
+
       let custoUnit = 0;
       if (cpu.insumos) {
         cpu.insumos.forEach((ins) => {
@@ -211,21 +218,19 @@ export const AbaMatrizPQ: React.FC<AbaMatrizPQProps> = ({
       const bdi = activeObra?.bdi ?? 25;
       const vendaUnit = cpu.vendaDefinida ? Number(cpu.preco_venda) || 0 : custoUnit * (1 + bdi / 100);
 
-      if (mapaExistente.has(idKey)) {
-        // Atualiza valores mantendo o nome customizado
-        const idx = novos.findIndex((r) => r.id === idKey);
-        if (idx >= 0) {
-          novos[idx] = {
-            ...novos[idx],
-            descricaoRecurso: cpu.nome,
-            unidadeMaterial: cpu.unidade || 'un',
-            custoCpu: Math.round(custoUnit * 100) / 100,
-            vendaCpu: Math.round(vendaUnit * 100) / 100,
-            cpuId: cpu.id
-          };
-        }
+      const existing = mapa.get(idKey);
+      if (existing) {
+        // Atualiza valores mantendo personalizações do usuário
+        mapa.set(idKey, {
+          ...existing,
+          descricaoRecurso: cpu.nome || existing.descricaoRecurso,
+          unidadeMaterial: cpu.unidade || existing.unidadeMaterial || 'un',
+          custoCpu: Math.round(custoUnit * 100) / 100,
+          vendaCpu: Math.round(vendaUnit * 100) / 100,
+          cpuId: cpu.id
+        });
       } else {
-        novos.push({
+        mapa.set(idKey, {
           id: idKey,
           obraId: activeObra?.id || '',
           nomeRecurso: cpu.code || idKey,
@@ -239,11 +244,13 @@ export const AbaMatrizPQ: React.FC<AbaMatrizPQProps> = ({
       }
     });
 
-    // 2. Sincroniza a partir dos itens da PQ
+    // 2. Sincroniza a partir dos itens da PQ (sem duplicar se já foi inserido pela CPU)
     pqItems.forEach((pq) => {
-      const idKey = pq.id;
-      if (!mapaExistente.has(idKey)) {
-        novos.push({
+      const idKey = String(pq.id || '').trim();
+      if (!idKey) return;
+
+      if (!mapa.has(idKey)) {
+        mapa.set(idKey, {
           id: idKey,
           obraId: activeObra?.id || '',
           nomeRecurso: pq.codigoRecursoProject || pq.id,
@@ -257,6 +264,7 @@ export const AbaMatrizPQ: React.FC<AbaMatrizPQProps> = ({
       }
     });
 
+    const novos = Array.from(mapa.values());
     onUpdateRecursosConfig(novos);
     alert(`Sincronização concluída! ${novos.length} recursos disponíveis para o Project.`);
   };
@@ -479,14 +487,14 @@ export const AbaMatrizPQ: React.FC<AbaMatrizPQProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
-              {pqItems.map((item) => {
+              {pqItems.map((item, idx) => {
                 const audit = auditSaldos.get(item.id);
                 const saldo = audit?.saldoQuantidade || 0;
                 const isSplit = item.isSplitParent;
 
                 return (
                   <div
-                    key={item.id}
+                    key={`${item.id}-${idx}`}
                     className={`p-2.5 rounded-lg border ${
                       isSplit ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50 border-slate-200'
                     }`}
@@ -556,8 +564,8 @@ export const AbaMatrizPQ: React.FC<AbaMatrizPQProps> = ({
                 className="text-xs bg-slate-50 border border-slate-300 rounded-lg p-1.5 outline-none max-w-[260px] truncate"
               >
                 <option value="TODOS">Todos os Serviços</option>
-                {recursosConfig.map((r) => (
-                  <option key={r.id} value={r.id}>
+                {recursosConfig.map((r, idx) => (
+                  <option key={`${r.id}-${idx}`} value={r.id}>
                     {r.nomeRecurso} - {r.descricaoRecurso}
                   </option>
                 ))}
@@ -733,11 +741,11 @@ export const AbaMatrizPQ: React.FC<AbaMatrizPQProps> = ({
                         </td>
                       </tr>
                     ) : (
-                      filteredRecursos.map((rec) => {
+                      filteredRecursos.map((rec, idx) => {
                         const isEditing = editingRecursoId === rec.id;
 
                         return (
-                          <tr key={rec.id} className="hover:bg-slate-50/80 transition">
+                          <tr key={`${rec.id}-${idx}`} className="hover:bg-slate-50/80 transition">
                             {/* NOME DO RECURSO (Definido pelo usuário) */}
                             <td className="p-3">
                               {isEditing ? (

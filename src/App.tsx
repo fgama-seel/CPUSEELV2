@@ -97,12 +97,40 @@ export default function App() {
     const savedVersoes = localStorage.getItem(`seel_matriz_${oKey}_versoes`);
     const savedParams = localStorage.getItem(`seel_matriz_${oKey}_params`);
 
+    // Sanitização e deduplicação para evitar qualquer chave duplicada vinda do localStorage
+    const deduplicateById = <T extends { id?: string | number }>(items: T[]): T[] => {
+      const seen = new Set<string | number>();
+      return (items || []).filter((item) => {
+        const id = item?.id;
+        if (id === undefined || id === null) return true;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+    };
+
+    const deduplicateTasks = (tasks: ScheduleTask[]): ScheduleTask[] => {
+      const seen = new Set<number>();
+      return (tasks || []).filter((t) => {
+        if (!t || t.uniqueId === undefined) return true;
+        if (seen.has(t.uniqueId)) return false;
+        seen.add(t.uniqueId);
+        return true;
+      });
+    };
+
     // Início 100% limpo caso não tenha dados salvos para esta obra
-    setPqItems(savedPq ? JSON.parse(savedPq) : []);
-    setScheduleTasks(savedTasks ? JSON.parse(savedTasks) : []);
-    setAllocationLinks(savedLinks ? JSON.parse(savedLinks) : []);
-    setRecursosConfig(savedRecursos ? JSON.parse(savedRecursos) : []);
-    setVersoesCronograma(savedVersoes ? JSON.parse(savedVersoes) : []);
+    const rawPq = savedPq ? JSON.parse(savedPq) : [];
+    const rawTasks = savedTasks ? JSON.parse(savedTasks) : [];
+    const rawLinks = savedLinks ? JSON.parse(savedLinks) : [];
+    const rawRecursos = savedRecursos ? JSON.parse(savedRecursos) : [];
+    const rawVersoes = savedVersoes ? JSON.parse(savedVersoes) : [];
+
+    setPqItems(deduplicateById(rawPq));
+    setScheduleTasks(deduplicateTasks(rawTasks));
+    setAllocationLinks(rawLinks);
+    setRecursosConfig(deduplicateById(rawRecursos));
+    setVersoesCronograma(deduplicateById(rawVersoes));
     setParametrosCaixa(savedParams ? JSON.parse(savedParams) : {
       lagFaturamentoMeses: 2,
       mesProducaoOffset: 0,
@@ -117,16 +145,30 @@ export default function App() {
 
   // Handlers que salvam estritamente na chave da obra ativa
   const handleUpdatePqItems = (newPq: PQItem[]) => {
-    setPqItems(newPq);
+    const seen = new Set<string>();
+    const sanitized = newPq.filter((p) => {
+      if (!p?.id) return true;
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+    setPqItems(sanitized);
     if (activeObraId) {
-      localStorage.setItem(`seel_matriz_${activeObraId}_pq`, JSON.stringify(newPq));
+      localStorage.setItem(`seel_matriz_${activeObraId}_pq`, JSON.stringify(sanitized));
     }
   };
 
   const handleUpdateScheduleTasks = (newTasks: ScheduleTask[]) => {
-    setScheduleTasks(newTasks);
+    const seen = new Set<number>();
+    const sanitized = newTasks.filter((t) => {
+      if (!t?.uniqueId) return true;
+      if (seen.has(t.uniqueId)) return false;
+      seen.add(t.uniqueId);
+      return true;
+    });
+    setScheduleTasks(sanitized);
     if (activeObraId) {
-      localStorage.setItem(`seel_matriz_${activeObraId}_tasks`, JSON.stringify(newTasks));
+      localStorage.setItem(`seel_matriz_${activeObraId}_tasks`, JSON.stringify(sanitized));
     }
   };
 
@@ -138,9 +180,16 @@ export default function App() {
   };
 
   const handleUpdateRecursosConfig = (newRecursos: RecursoProjectConfig[]) => {
-    setRecursosConfig(newRecursos);
+    const seen = new Set<string>();
+    const sanitized = newRecursos.filter((r) => {
+      if (!r?.id) return true;
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+    setRecursosConfig(sanitized);
     if (activeObraId) {
-      localStorage.setItem(`seel_matriz_${activeObraId}_recursos`, JSON.stringify(newRecursos));
+      localStorage.setItem(`seel_matriz_${activeObraId}_recursos`, JSON.stringify(sanitized));
     }
   };
 
