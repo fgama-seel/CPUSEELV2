@@ -266,6 +266,7 @@ export interface PQItem {
   isSplitParent?: boolean; // Se true, é cabeçalho de item desmembrado (ex: 6010102)
   splitRatioVenda?: number; // 0.40 para fornecimento ou 0.60 para aplicação
   codigoRecursoProject?: string; // ex: "3010103"
+  seq?: number; // Sequência numérica da Planilha de Quantidades / CPU (1, 2, 3...)
 }
 
 export interface ScheduleTask {
@@ -416,6 +417,7 @@ export interface RecursoProjectConfig {
   vendaCpu: number; // Custo -> Valor de Venda Unitário da PQ
   pqItemId?: string;
   cpuId?: string;
+  seq?: number; // Sequenciador correspondente à tabela de CPU (1, 2, 3...)
   observacoes?: string;
 }
 

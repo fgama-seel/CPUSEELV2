@@ -13,7 +13,8 @@ import {
   X,
   MessageSquare,
   HelpCircle,
-  Package
+  Package,
+  Calculator
 } from 'lucide-react';
 import {
   ScheduleTask,
@@ -21,7 +22,8 @@ import {
   RecursoProjectConfig,
   PQItem,
   ParametrosFluxoCaixa,
-  Obra
+  Obra,
+  CPU
 } from '../types';
 import { formatMoney, exportarUsoRecursosProject } from '../lib/excelExport';
 
@@ -31,6 +33,7 @@ interface TabelaUsoRecursosMSProjectProps {
   allocationLinks: AllocationLink[];
   recursosConfig: RecursoProjectConfig[];
   pqItems: PQItem[];
+  cpus?: CPU[];
   parametrosCaixa: ParametrosFluxoCaixa;
   onUpdateParametrosCaixa: (params: ParametrosFluxoCaixa) => void;
 }
@@ -51,6 +54,7 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
   allocationLinks,
   recursosConfig,
   pqItems,
+  cpus = [],
   parametrosCaixa,
   onUpdateParametrosCaixa
 }) => {
@@ -80,6 +84,28 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
   // Mapeia todas as tarefas por uniqueId
   const taskMap = useMemo(() => new Map<number, ScheduleTask>(tasks.map((t) => [t.uniqueId, t])), [tasks]);
   const pqMap = useMemo(() => new Map<string, PQItem>(pqItems.map((p) => [p.id, p])), [pqItems]);
+
+  // Mapeamento do sequenciador "SEQ" a partir da tabela de CPUs
+  const cpuSeqMap = useMemo(() => {
+    const map = new Map<string, number>();
+    cpus.forEach((c, idx) => {
+      const numSeq = c.sequencia !== undefined ? c.sequencia : idx + 1;
+      if (c.code) map.set(c.code.trim(), numSeq);
+      if (c.id) map.set(c.id.trim(), numSeq);
+    });
+    return map;
+  }, [cpus]);
+
+  // Mapeamento do sequenciador a partir da PQ
+  const pqSeqMap = useMemo(() => {
+    const map = new Map<string, number>();
+    pqItems.forEach((p, idx) => {
+      const numSeq = p.seq !== undefined ? p.seq : idx + 1;
+      map.set(p.id.trim(), numSeq);
+      if (p.codigoRecursoProject) map.set(p.codigoRecursoProject.trim(), numSeq);
+    });
+    return map;
+  }, [pqItems]);
 
   // Identifica todos os meses distintos presentes no cronograma
   const mesesOrdenados = useMemo(() => {
@@ -121,12 +147,24 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
     });
   }, [tasks]);
 
-  // Agrupa alocações por Recurso Project
+  function nomesMeses(m: number): string {
+    return ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][m];
+  }
+
+  // Agrupa alocações por Recurso Project e ORDENA PELO SEQUENCIADOR "SEQ" DA TABELA DE CPU
   const usoRecursosGrid = useMemo(() => {
     if (recursosConfig.length === 0 || tasks.length === 0) return [];
 
-    return recursosConfig.map((rec) => {
-      // Procura todas as alocações vinculadas a este recurso (seja por id, pqItemId ou codigo)
+    const lista = recursosConfig.map((rec, rIdx) => {
+      // Determina o sequenciador SEQ da CPU correspondente
+      const seqCalculado =
+        rec.seq ??
+        cpuSeqMap.get(rec.nomeRecurso.trim()) ??
+        cpuSeqMap.get(rec.id.trim()) ??
+        pqSeqMap.get(rec.id.trim()) ??
+        rIdx + 1;
+
+      // Procura todas as alocações vinculadas a este recurso
       const linksDoRecurso = allocationLinks.filter(
         (l) => l.pqItemId === rec.id || l.pqItemId === rec.pqItemId || l.pqItemId === rec.nomeRecurso
       );
@@ -143,7 +181,7 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
         })
         .filter(Boolean) as { task: ScheduleTask; link: AllocationLink }[];
 
-      // Valores mensais calculados para este recurso (agregado)
+      // Valores mensais calculados para este recurso
       const valoresMesQtd: Record<string, number> = {};
       const valoresMesCusto: Record<string, number> = {};
       const valoresMesFat: Record<string, number> = {};
@@ -166,7 +204,7 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
 
         let curAno = anoIni;
         let curMes = mesIni;
-        while (curAno < endAno(anoFim) || (curAno === anoFim && curMes <= mesFim)) {
+        while (curAno < anoFim || (curAno === anoFim && curMes <= mesFim)) {
           const rotulo = `${nomesMeses(curMes)}/${String(curAno).substring(2)}`;
           valoresMesQtd[rotulo] = (valoresMesQtd[rotulo] || 0) + qtdPorMes;
           valoresMesCusto[rotulo] = (valoresMesCusto[rotulo] || 0) + custoPorMes;
@@ -186,6 +224,7 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
 
       return {
         rec,
+        seq: seqCalculado,
         tarefasAlocadas,
         valoresMesQtd,
         valoresMesCusto,
@@ -195,14 +234,11 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
         totalFat
       };
     });
-  }, [recursosConfig, tasks, allocationLinks, taskMap]);
 
-  function nomesMeses(m: number): string {
-    return ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][m];
-  }
-  function endAno(a: number): number {
-    return a;
-  }
+    // ORDENAÇÃO ESTRITA PELO SEQUENCIADOR "SEQ" (1, 2, 3...) IGUAL À TABELA DE CPU
+    lista.sort((a, b) => a.seq - b.seq);
+    return lista;
+  }, [recursosConfig, tasks, allocationLinks, taskMap, cpuSeqMap, pqSeqMap]);
 
   // Filtra por busca textual
   const filteredGrid = useMemo(() => {
@@ -215,6 +251,42 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
         item.tarefasAlocadas.some((t) => t.task.name.toLowerCase().includes(b))
     );
   }, [usoRecursosGrid, buscaTexto]);
+
+  // TOTALIZADOR GERAL DO TOPO: SOMA DE CADA COLUNA MENSAL (QTD, CUSTO E FATURAMENTO)
+  const totaisColunasMes = useMemo(() => {
+    const totalQtdMes: Record<string, number> = {};
+    const totalCustoMes: Record<string, number> = {};
+    const totalFatMes: Record<string, number> = {};
+
+    filteredGrid.forEach((item) => {
+      const ajustesRecurso = parametrosCaixa.ajustesRecursosManual?.[item.rec.id] || {};
+
+      mesesOrdenados.forEach((m) => {
+        const ajuste = ajustesRecurso[m.rotulo];
+
+        const q = ajuste?.qtd !== undefined ? ajuste.qtd! : (item.valoresMesQtd[m.rotulo] || 0);
+        const c = ajuste?.custo !== undefined ? ajuste.custo! : (item.valoresMesCusto[m.rotulo] || 0);
+        const f = ajuste?.faturamento !== undefined ? ajuste.faturamento! : (item.valoresMesFat[m.rotulo] || 0);
+
+        totalQtdMes[m.rotulo] = (totalQtdMes[m.rotulo] || 0) + q;
+        totalCustoMes[m.rotulo] = (totalCustoMes[m.rotulo] || 0) + c;
+        totalFatMes[m.rotulo] = (totalFatMes[m.rotulo] || 0) + f;
+      });
+    });
+
+    const somaGeralQtd = Object.values(totalQtdMes).reduce((a, b) => a + b, 0);
+    const somaGeralCusto = Object.values(totalCustoMes).reduce((a, b) => a + b, 0);
+    const somaGeralFat = Object.values(totalFatMes).reduce((a, b) => a + b, 0);
+
+    return {
+      totalQtdMes,
+      totalCustoMes,
+      totalFatMes,
+      somaGeralQtd,
+      somaGeralCusto,
+      somaGeralFat
+    };
+  }, [filteredGrid, mesesOrdenados, parametrosCaixa.ajustesRecursosManual]);
 
   // Salvar ajuste manual de célula
   const handleSalvarAjuste = () => {
@@ -276,19 +348,19 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
 
     filteredGrid.forEach((item) => {
       exportRows.push({
-        recurso: `${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
+        recurso: `SEQ ${String(item.seq).padStart(2, '0')} - ${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
         tipoLinha: `Qtd (${item.rec.unidadeMaterial})`,
         valoresMes: item.valoresMesQtd,
         total: item.totalQtd
       });
       exportRows.push({
-        recurso: `${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
+        recurso: `SEQ ${String(item.seq).padStart(2, '0')} - ${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
         tipoLinha: 'Custo Projetado (R$)',
         valoresMes: item.valoresMesCusto,
         total: item.totalCusto
       });
       exportRows.push({
-        recurso: `${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
+        recurso: `SEQ ${String(item.seq).padStart(2, '0')} - ${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
         tipoLinha: 'Faturamento Projetado (R$)',
         valoresMes: item.valoresMesFat,
         total: item.totalFat
@@ -358,12 +430,12 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
               Todas as Linhas
             </button>
             <button
-              onClick={() => setTipoLinhaFiltro('QTD')}
+              onClick={() => setTipoLinhaFiltro('FAT')}
               className={`px-2 py-1 rounded font-bold cursor-pointer ${
-                tipoLinhaFiltro === 'QTD' ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-200'
+                tipoLinhaFiltro === 'FAT' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Qtd Produção
+              Faturamento
             </button>
             <button
               onClick={() => setTipoLinhaFiltro('CUSTO')}
@@ -374,18 +446,18 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
               Custo CPU
             </button>
             <button
-              onClick={() => setTipoLinhaFiltro('FAT')}
+              onClick={() => setTipoLinhaFiltro('QTD')}
               className={`px-2 py-1 rounded font-bold cursor-pointer ${
-                tipoLinhaFiltro === 'FAT' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-200'
+                tipoLinhaFiltro === 'QTD' ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Faturamento
+              Qtd Produção
             </button>
           </div>
 
           <button
             onClick={handleExportar}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Exportar (.xlsx)</span>
@@ -393,17 +465,19 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
         </div>
       </div>
 
-      {/* GRADE "USO DE RECURSOS" (PADRÃO MS PROJECT) */}
+      {/* GRADE "USO DE RECURSOS" (PADRÃO MS PROJECT) COM TOTALIZADOR NO TOPO E ORDENADO POR SEQ */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-800 text-white uppercase tracking-wider text-[10px]">
-                <th className="p-2.5 w-72 sticky left-0 bg-slate-800 z-20 border-r border-slate-700">
-                  Nome do Recurso / Tarefa do Project
+              <tr className="bg-slate-900 text-white uppercase tracking-wider text-[10px]">
+                <th className="p-3 w-80 sticky left-0 bg-slate-900 z-20 border-r border-slate-700">
+                  Item da PQ / Recurso (Ordenado por SEQ)
                 </th>
-                <th className="p-2.5 w-36 border-r border-slate-700">Tipo de Dado</th>
-                <th className="p-2.5 w-32 text-right border-r border-slate-700">Total Acumulado</th>
+                <th className="p-3 w-36 border-r border-slate-700">Tipo de Dado</th>
+                <th className="p-3 w-36 text-right border-r border-slate-700 font-bold">
+                  Total Acumulado
+                </th>
                 {mesesOrdenados.map((m) => (
                   <th
                     key={m.key}
@@ -415,6 +489,66 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
+              {/* TOTALIZADOR NO TOPO (SOMA PREVISTA DE CADA COLUNA / MÊS) */}
+              {filteredGrid.length > 0 && (
+                <>
+                  {/* TOTALIZADOR 1: FATURAMENTO PROJETADO DO MÊS */}
+                  <tr className="bg-emerald-950 text-white font-bold border-b border-emerald-900">
+                    <td className="p-2.5 sticky left-0 bg-emerald-950 z-10 border-r border-emerald-900 font-sans flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="font-black text-emerald-300 uppercase tracking-wider text-[11px]">
+                        TOTAL PREVISTO: FATURAMENTO
+                      </span>
+                    </td>
+                    <td className="p-2 border-r border-emerald-900 text-emerald-300 font-sans text-[10px] uppercase">
+                      Receita Total (R$)
+                    </td>
+                    <td className="p-2 text-right border-r border-emerald-900 text-emerald-300 font-black text-sm">
+                      {formatMoney(totaisColunasMes.somaGeralFat)}
+                    </td>
+                    {mesesOrdenados.map((m) => {
+                      const val = totaisColunasMes.totalFatMes[m.rotulo] || 0;
+                      return (
+                        <td
+                          key={`tot-fat-${m.key}`}
+                          className="p-2 text-right border-r border-emerald-900 text-emerald-200 font-black text-xs"
+                        >
+                          {val > 0 ? formatMoney(val) : '-'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+
+                  {/* TOTALIZADOR 2: CUSTO DIRETO PROJETADO DO MÊS */}
+                  <tr className="bg-slate-900 text-white font-bold border-b-2 border-slate-800">
+                    <td className="p-2.5 sticky left-0 bg-slate-900 z-10 border-r border-slate-800 font-sans flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span className="font-black text-rose-300 uppercase tracking-wider text-[11px]">
+                        TOTAL PREVISTO: CUSTO DIRETO
+                      </span>
+                    </td>
+                    <td className="p-2 border-r border-slate-800 text-rose-300 font-sans text-[10px] uppercase">
+                      Custo Total (R$)
+                    </td>
+                    <td className="p-2 text-right border-r border-slate-800 text-rose-300 font-black text-sm">
+                      {formatMoney(totaisColunasMes.somaGeralCusto)}
+                    </td>
+                    {mesesOrdenados.map((m) => {
+                      const val = totaisColunasMes.totalCustoMes[m.rotulo] || 0;
+                      return (
+                        <td
+                          key={`tot-cst-${m.key}`}
+                          className="p-2 text-right border-r border-slate-800 text-rose-200 font-black text-xs"
+                        >
+                          {val > 0 ? formatMoney(val) : '-'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </>
+              )}
+
+              {/* LISTAGEM DOS RECURSOS ORDENADOS POR SEQ */}
               {filteredGrid.length === 0 ? (
                 <tr>
                   <td colSpan={mesesOrdenados.length + 3} className="p-8 text-center text-slate-400 font-sans">
@@ -429,10 +563,10 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
 
                   return (
                     <React.Fragment key={`rec-${item.rec.id}`}>
-                      {/* LINHA PAI: RECURSO PROJECT */}
-                      <tr className="bg-slate-100/90 font-bold border-t-2 border-slate-200 text-slate-900">
+                      {/* LINHA DO RECURSO (COM BADGE SEQ DA CPU) */}
+                      <tr className="bg-slate-100/90 font-bold border-t-2 border-slate-200 text-slate-900 hover:bg-slate-150 transition">
                         <td className="p-2 sticky left-0 bg-slate-100 z-10 border-r border-slate-200 font-sans">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2">
                             {item.tarefasAlocadas.length > 0 && (
                               <button
                                 onClick={() => toggleExpand(item.rec.id)}
@@ -445,9 +579,15 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
                                 )}
                               </button>
                             )}
+
+                            {/* BADGE SEQ (IGUAL À TABELA DE CPU) */}
+                            <span className="font-mono text-[10px] font-black bg-indigo-100 text-indigo-900 px-1.5 py-0.5 rounded border border-indigo-200 shrink-0">
+                              SEQ {String(item.seq).padStart(2, '0')}
+                            </span>
+
                             <Package className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                             <span className="font-mono text-indigo-900 font-black">{item.rec.nomeRecurso}</span>
-                            <span className="text-slate-600 truncate max-w-[180px]" title={item.rec.descricaoRecurso}>
+                            <span className="text-slate-600 truncate max-w-[160px]" title={item.rec.descricaoRecurso}>
                               - {item.rec.descricaoRecurso}
                             </span>
                           </div>
@@ -468,37 +608,36 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
                         })}
                       </tr>
 
-                      {/* SUB-LINHA 1: QUANTIDADE DE PRODUÇÃO */}
-                      {(tipoLinhaFiltro === 'TODAS' || tipoLinhaFiltro === 'QTD') && (
+                      {/* SUB-LINHA 1: FATURAMENTO PROJETADO */}
+                      {(tipoLinhaFiltro === 'TODAS' || tipoLinhaFiltro === 'FAT') && (
                         <tr className="hover:bg-slate-50/80 text-[11px] text-slate-700">
                           <td className="p-2 pl-8 sticky left-0 bg-white z-10 border-r border-slate-200 font-sans text-slate-600">
-                            ↳ Quantidade Física
+                            ↳ Faturamento Contratual
                           </td>
-                          <td className="p-2 border-r border-slate-200 text-indigo-700 font-semibold font-sans">
-                            Qtd Produção ({item.rec.unidadeMaterial})
+                          <td className="p-2 border-r border-slate-200 text-emerald-700 font-semibold font-sans">
+                            Faturamento Projetado (R$)
                           </td>
-                          <td className="p-2 text-right border-r border-slate-200 font-bold text-indigo-900">
-                            {item.totalQtd.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-                            {item.rec.unidadeMaterial}
+                          <td className="p-2 text-right border-r border-slate-200 font-bold text-emerald-800">
+                            {formatMoney(item.totalFat)}
                           </td>
                           {mesesOrdenados.map((m) => {
-                            const valOriginal = item.valoresMesQtd[m.rotulo] || 0;
+                            const valOriginal = item.valoresMesFat[m.rotulo] || 0;
                             const ajuste = ajustesRecurso[m.rotulo];
-                            const isAdjusted = ajuste?.qtd !== undefined;
-                            const valFinal = isAdjusted ? ajuste.qtd! : valOriginal;
+                            const isAdjusted = ajuste?.faturamento !== undefined;
+                            const valFinal = isAdjusted ? ajuste.faturamento! : valOriginal;
 
                             return (
                               <td
-                                key={`qtd-${m.key}`}
+                                key={`fat-${m.key}`}
                                 className={`p-2 text-right border-r border-slate-200 relative group cursor-pointer ${
-                                  isAdjusted ? 'bg-amber-50 font-bold text-amber-900' : ''
+                                  isAdjusted ? 'bg-amber-50 font-bold text-emerald-900' : ''
                                 }`}
                                 onClick={() => {
                                   setModalAjuste({
                                     recursoId: item.rec.id,
-                                    recursoNome: `${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
+                                    recursoNome: `SEQ ${String(item.seq).padStart(2, '0')} - ${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
                                     mes: m.rotulo,
-                                    tipoDado: 'qtd',
+                                    tipoDado: 'faturamento',
                                     valorAtual: valFinal,
                                     valorOriginal: valOriginal,
                                     motivo: ajuste?.motivo || ''
@@ -508,22 +647,19 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
                                 }}
                               >
                                 {isAdjusted && (
-                                  <div
-                                    className="absolute top-0 right-0 w-0 h-0 border-t-[7px] border-r-[7px] border-t-amber-500 border-r-amber-500 border-b-transparent border-l-transparent"
-                                    title="Produção ajustada manualmente (comentário disponível)"
-                                  />
+                                  <div className="absolute top-0 right-0 w-0 h-0 border-t-[7px] border-r-[7px] border-t-amber-500 border-r-amber-500 border-b-transparent border-l-transparent" />
                                 )}
 
-                                {/* JANELA DE OBSERVAÇÃO AO PASSAR O MOUSE (TOOLTIP FLUTUANTE) */}
+                                {/* TOOLTIP FLUTUANTE AO PASSAR O MOUSE */}
                                 {isAdjusted && (
                                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2.5 bg-slate-900 text-white text-[11px] rounded-lg shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition z-50 font-sans">
                                     <div className="flex items-center gap-1.5 text-amber-400 font-bold pb-1 border-b border-slate-700">
                                       <AlertTriangle className="w-3.5 h-3.5" />
-                                      <span>Ajuste Manual de Produção</span>
+                                      <span>Ajuste Manual de Faturamento</span>
                                     </div>
                                     <div className="mt-1 space-y-0.5 font-mono text-[10px]">
-                                      <div>Original Cronograma: {valOriginal.toFixed(2)} {item.rec.unidadeMaterial}</div>
-                                      <div className="text-amber-300 font-bold">Ajustado: {valFinal.toFixed(2)} {item.rec.unidadeMaterial}</div>
+                                      <div>Original Cronograma: {formatMoney(valOriginal)}</div>
+                                      <div className="text-amber-300 font-bold">Ajustado: {formatMoney(valFinal)}</div>
                                     </div>
                                     {ajuste?.motivo && (
                                       <div className="mt-1.5 pt-1 border-t border-slate-800 text-[10px] text-slate-300 italic">
@@ -533,11 +669,7 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
                                   </div>
                                 )}
 
-                                <span>
-                                  {valFinal > 0
-                                    ? valFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                    : '-'}
-                                </span>
+                                <span>{valFinal > 0 ? formatMoney(valFinal) : '-'}</span>
                               </td>
                             );
                           })}
@@ -571,7 +703,7 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
                                 onClick={() => {
                                   setModalAjuste({
                                     recursoId: item.rec.id,
-                                    recursoNome: `${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
+                                    recursoNome: `SEQ ${String(item.seq).padStart(2, '0')} - ${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
                                     mes: m.rotulo,
                                     tipoDado: 'custo',
                                     valorAtual: valFinal,
@@ -592,36 +724,37 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
                         </tr>
                       )}
 
-                      {/* SUB-LINHA 3: FATURAMENTO PROJETADO */}
-                      {(tipoLinhaFiltro === 'TODAS' || tipoLinhaFiltro === 'FAT') && (
+                      {/* SUB-LINHA 3: QUANTIDADE DE PRODUÇÃO */}
+                      {(tipoLinhaFiltro === 'TODAS' || tipoLinhaFiltro === 'QTD') && (
                         <tr className="hover:bg-slate-50/80 text-[11px] text-slate-700">
                           <td className="p-2 pl-8 sticky left-0 bg-white z-10 border-r border-slate-200 font-sans text-slate-600">
-                            ↳ Faturamento Contratual
+                            ↳ Quantidade Física
                           </td>
-                          <td className="p-2 border-r border-slate-200 text-emerald-700 font-semibold font-sans">
-                            Faturamento Projetado (R$)
+                          <td className="p-2 border-r border-slate-200 text-indigo-700 font-semibold font-sans">
+                            Qtd Produção ({item.rec.unidadeMaterial})
                           </td>
-                          <td className="p-2 text-right border-r border-slate-200 font-bold text-emerald-800">
-                            {formatMoney(item.totalFat)}
+                          <td className="p-2 text-right border-r border-slate-200 font-bold text-indigo-900">
+                            {item.totalQtd.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                            {item.rec.unidadeMaterial}
                           </td>
                           {mesesOrdenados.map((m) => {
-                            const valOriginal = item.valoresMesFat[m.rotulo] || 0;
+                            const valOriginal = item.valoresMesQtd[m.rotulo] || 0;
                             const ajuste = ajustesRecurso[m.rotulo];
-                            const isAdjusted = ajuste?.faturamento !== undefined;
-                            const valFinal = isAdjusted ? ajuste.faturamento! : valOriginal;
+                            const isAdjusted = ajuste?.qtd !== undefined;
+                            const valFinal = isAdjusted ? ajuste.qtd! : valOriginal;
 
                             return (
                               <td
-                                key={`fat-${m.key}`}
+                                key={`qtd-${m.key}`}
                                 className={`p-2 text-right border-r border-slate-200 relative group cursor-pointer ${
-                                  isAdjusted ? 'bg-amber-50 font-bold text-emerald-900' : ''
+                                  isAdjusted ? 'bg-amber-50 font-bold text-amber-900' : ''
                                 }`}
                                 onClick={() => {
                                   setModalAjuste({
                                     recursoId: item.rec.id,
-                                    recursoNome: `${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
+                                    recursoNome: `SEQ ${String(item.seq).padStart(2, '0')} - ${item.rec.nomeRecurso} - ${item.rec.descricaoRecurso}`,
                                     mes: m.rotulo,
-                                    tipoDado: 'faturamento',
+                                    tipoDado: 'qtd',
                                     valorAtual: valFinal,
                                     valorOriginal: valOriginal,
                                     motivo: ajuste?.motivo || ''
@@ -633,7 +766,11 @@ export const TabelaUsoRecursosMSProject: React.FC<TabelaUsoRecursosMSProjectProp
                                 {isAdjusted && (
                                   <div className="absolute top-0 right-0 w-0 h-0 border-t-[7px] border-r-[7px] border-t-amber-500 border-r-amber-500 border-b-transparent border-l-transparent" />
                                 )}
-                                <span>{valFinal > 0 ? formatMoney(valFinal) : '-'}</span>
+                                <span>
+                                  {valFinal > 0
+                                    ? valFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                    : '-'}
+                                </span>
                               </td>
                             );
                           })}
