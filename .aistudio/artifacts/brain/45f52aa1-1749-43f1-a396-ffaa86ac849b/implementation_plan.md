@@ -1,63 +1,78 @@
-# Plano de Implementação Revisado: Importação MS Project (.mpp / .xml), Matriz Simplificada & Ciclo de Caixa
+# Plano de Implementação Revisado: Histograma 100% Real por Composições, Verbas Mensais, Trava de Linha & MS Project
 
-## Análise de Viabilidade Técnica: Arquivo `.mpp` do Microsoft Project
+Este plano especifica a arquitetura e as regras para o novo histograma dinâmico baseado estritamente nas composições reais (CPUs e Custos Indiretos) e nas tarefas do cronograma XML do MS Project, com suporte a verbas mensais, trava de segurança por linha e detecção de desvios.
 
-### Natureza do formato `.mpp`
-O arquivo `.mpp` é um formato binário proprietário da Microsoft, fechado e encriptado internamente (baseado em OLE Structured Storage). No ambiente web moderno (navegador / JavaScript / Node.js sem runtime Java externo como MPXJ), a leitura direta de arquivos `.mpp` binários é instável ou sujeita a quebra entre versões do Project (2013, 2016, 2019, 2021, Project 365).
-
-### A Melhor Solução Nativa: `.xml` do MS Project
-O próprio Microsoft Project possui um formato nativo oficial e aberto: **XML do Microsoft Project (`.xml`)**.
-- No MS Project: basta ir em **Arquivo $\rightarrow$ Salvar Como $\rightarrow$ Formato XML do MS Project (*.xml)**.
-- O arquivo `.xml` exporta **100% da estrutura do projeto**: ID Exclusiva, EDT/WBS, Níveis de tópicos (OutlineLevel), Datas de início/término, durações, tarefas resumo vs tarefas operacionais, recursos e alocações.
-- O sistema web pode ler esse `.xml` com **precisão cirúrgica e instantânea**, sem necessidade de converter para Excel, sem risco de corrupção e sem erros de cabeçalho de colunas.
-
----
-
-## 1. Arquitetura de Importação na Aba "Cronograma Executivo"
-
-O importador da aba Cronograma aceitará de forma unificada:
-1. **XML Nativo do MS Project (`.xml`)**: O usuário salva direto do Project como XML e arrasta para a aplicação. O sistema extrai automaticamente tarefas, durações, datas e WBS sem nenhuma intervenção manual.
-2. **Planilha Excel / CSV (`.xlsx`, `.csv`)**: Formato tabular já existente para cópia e colagem rápida de dados.
-3. **Instrução Visual com 2 Passos no Project**: Guia simples em tela mostrando como salvar em XML no MS Project em 3 segundos.
-
----
-
-## 2. Simplificação da Matriz PQ vs. Cronograma
-
-- **Filtro Direto para Linhas de Serviço**: Exibição focada nas tarefas operacionais da EAP (ocultando tarefas de resumo/títulos que não recebem alocação direta).
-- **Grid de Trabalho Ágil**:
-  - Exibição de cada linha executiva: `ID Exclusiva`, `EDT`, `Nome do Serviço`, `Quantidade Física`, `Duração (DU)`.
-  - Recursos da PQ já alocados com chips visuais.
-  - Botão **"Distribuir Recurso"** por linha: modal rápido para selecionar o item da PQ e definir quantidade direta ou aplicar regra de cálculo.
-  - Painel Superior de Saldos da PQ: acompanhamento em tempo real de quantidade orçada, alocada e saldo pendente.
+## 1. O que foi pedido
+- **Origem dos Dados 100% Real (Sem Dados Fictícios):**
+  - **Mão de Obra Indireta:** Extraída estritamente dos insumos classificados como indiretos/apoio nas CPUs e na tabela de Custos Indiretos da obra.
+  - **Mão de Obra Direta:** Extraída estritamente dos insumos do tipo Mão de Obra classificados como diretos dentro das CPUs atreladas às tarefas do cronograma.
+  - **Equipamentos:** Extraídos estritamente dos insumos do tipo Equipamento (diretos e indiretos).
+- **Tratamento de Verbas Mensais (`MES` / `GB`):**
+  - Distribuir a quantidade unitariamente mês a mês no decorrer da vigência da tarefa/contrato.
+  - Se houver sobra de saldo (frações/resto), acumular o saldo remanescente no último mês e sinalizar visualmente.
+  - Permitir edição manual na célula/mês com campo de observação para redistribuição.
+- **Trava de Linha contra Novos Cronogramas (Cadeado):**
+  - Adicionar um botão de **Travar Linha (Ícone de Cadeado)** em cada linha de recurso do histograma.
+  - Linhas travadas preservam seus valores e ajustes manuais, mesmo se o usuário importar um novo XML de cronograma no MS Project.
+- **Cálculo por Produtividade da CPU & Comparativo MS Project (Opção A):**
+  - **Dias Teóricos CPU:** $\text{Dias} = \text{Quantidade Alocada} / (\text{prod\_teorica} \times \text{praticabilidade})$.
+  - **Alerta de Desvio:** Comparar a duração teórica da CPU com a duração agendada no MS Project (`workingDaysDuration`). Se houver divergência significativo ($> 10\%$), exibir um badge de alerta de desvio.
+  - **Nivelamento de Sobreposição:** Em tarefas sobrepostas no mesmo mês, aplicar a trava de capacidade máxima física de equipes/equipamentos para evitar picos irreais.
+- **Regra de "Sem Meia Pessoa":**
+  - Qualquer fração de horas $> 0$ e $< 189,2\text{ h}$ no mês é convertida para **1 pessoa/máquina**.
 
 ---
 
-## 3. Cópia dos Recursos de Volta para o MS Project
-
-- Geração automática da string padronizada:
-  `3010102[3,58 un];3010103[104,98 M];3010107[4169,47 KG]...`
-- Botão para copiar individualmente por tarefa e botão para **copiar tabela completa de recursos** para colar em massa na coluna "Nomes dos Recursos" do Project.
-- Suporte ao Roll-Up para tarefas de Nível 7 (Pacote/Bloco).
+## 2. Qual o problema
+- Atualmente, a visualização do histograma ainda possuía trechos com tabela de referência estática quando faltavam vínculos, em vez de se basear unicamente nas composições (insumos de CPUs e Custos Indiretos) e nas tarefas do MS Project.
+- Não existia funcionalidade para travar linhas individualmente e protegê-las contra reimportações de cronogramas.
 
 ---
 
-## 4. Projeção de Produção, Faturamento e Caixa ($M \rightarrow M+1 \rightarrow M+2$)
+## 3. Opções de Solução
 
-- **Parâmetros Globais Editáveis**:
-  - Mês de Produção $M$;
-  - Mês de Faturamento $M + X$ (padrão: $M+1$);
-  - Mês de Recebimento $M + Y$ (padrão: $M+2$).
-- **Tabela DRE & Fluxo de Caixa com Edição Mês a Mês**:
-  - O usuário pode ajustar manualmente qualquer valor projetado de faturamento ou recebimento nos meses do contrato para refletir o cronograma financeiro real e a curva de desembolso.
+### Opção A (Recomendada - Processamento Estrito por Insumos de CPU + Trava por Cadeado + Alerta de Desvio):
+- **Origem Estrita por Insumos:**
+  - Varre todas as CPUs e Custos Indiretos da obra ativa.
+  - Separa os insumos por `categoria` e `tipo`: MO Indireta, MO Direta e Equipamento.
+- **Verba Mensal & Resíduo no Último Mês:**
+  - Se o insumo tiver unidade `MES` / `MÊS` / `GB`, calcula $\text{Qtd/Mês} = \text{floor}(\text{QtdTotal} / \text{Meses})$.
+  - O resíduo sobra é adicionado no último mês com sinalização de destaque.
+- **Trava de Linha por Cadeado (`isLocked`):**
+  - Salva o estado `recursosTravados: Record<string, boolean>` no `localStorage` por obra.
+  - Ao reimportar o cronograma XML, o algoritmo ignora recálculos para as chaves registradas como `isLocked === true`.
+- **Nivelamento de Equipes:**
+  - Aplica o teto da capacidade máxima física em frentes simultâneas/sobrepostas.
+
+### Opção B (Distribuição Genérica sem Distinção de Insumo):
+- Agrupar apenas o valor financeiro e dividir por um custo médio.
+- *Desvantagem:* Perde a rastreabilidade analítica por insumo e função da CPU.
 
 ---
 
-## 5. Sequência de Implementação
+## 4. Etapas de Execução
 
-1. **Parser de XML do MS Project (`src/lib/msprojectXmlParser.ts`)**: Suporte nativo para carregar arquivos `.xml` exportados pelo MS Project.
-2. **Aba Dedicada "Cronograma Executivo" (`src/components/AbaCronogramaExecutivo.tsx`)**: Upload de `.xml`, `.xlsx`, `.csv` e tabela de recursos, projeção e cópia de recursos.
-3. **Aba "Relatórios Gerenciais" (`src/components/AbaRelatoriosGerenciais.tsx`)**: Desmembramento da visualização executiva, curva S e histogramas.
-4. **Matriz PQ Simplificada (`src/components/AbaMatrizPQ.tsx`)**: Grid exclusivo de linhas de serviço com ação rápida de alocação.
-5. **Ciclo de Caixa M / M+1 / M+2**: Campos configuráveis e edição mês a mês na tabela de fluxo de caixa.
-6. **Compilação e Verificação**: Testes via `compile_applet` e `lint_applet`.
+1. **Atualizar Tipos em `src/types.ts`:**
+   - Adicionar `recursosHistogramaTravados?: Record<string, boolean>` em `ParametrosFluxoCaixa` ou no estado da obra.
+2. **Reformular `GraficoHistogramaBarras.tsx` & `AbaRelatoriosGerenciais.tsx`:**
+   - Implementar o motor de extração estrita de insumos das CPUs e Custos Indiretos.
+   - Implementar o algoritmo de distribuição de verbas mensais (`MES`/`GB`) com acúmulo de sobra no último mês.
+   - Adicionar a coluna de **Trava de Linha (Cadeado)** permitindo congelar/descongelar o recálculo de qualquer função.
+   - Adicionar badge de alerta visual de desvio de produtividade (CPU vs MS Project).
+   - Garantir que não exista nenhum dado fictício de fallback.
+3. **Persistência em Firestore/LocalStorage:**
+   - Salvar ajustes manuais de linhas e estado de cadeado por obra.
+
+---
+
+## 5. Como Testar
+1. **Verificar Origem 100% Real por Insumos de CPU:**
+   - Acesse **Relatórios Gerenciais** $\rightarrow$ **Histograma**.
+   - Confirme que a tabela de Mão de Obra Direta e Equipamentos traz unicamente os insumos reais das CPUs cadastradas na obra ativa.
+2. **Testar Verba Mensal e Sobra no Último Mês:**
+   - Cadastre uma verba mensal (ex.: 5 meses de consultoria para um contrato de 4 meses).
+   - Verifique a distribuição unitária nos primeiros meses e o acúmulo do saldo no último mês com a marcação destacada.
+3. **Testar Trava por Cadeado contra Importação de Cronograma:**
+   - Clique no ícone de **Cadeado** em uma linha para travá-la.
+   - Acesse **Cronograma Executivo** e reimporte um novo arquivo XML.
+   - Volte ao histograma e confirme que a linha travada manteve exatamente seus valores e não foi sobrescrita.

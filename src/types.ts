@@ -357,6 +357,18 @@ export interface ParametrosFluxoCaixa {
       }
     >
   >;
+  recursosHistogramaTravados?: Record<string, boolean>;
+  ajustesHistogramaManual?: Record<
+    string,
+    Record<
+      string,
+      {
+        val?: number;
+        motivo?: string;
+        editadoEm?: string;
+      }
+    >
+  >;
   descontoAdiantamentoPerc: number; // Padrão: 13.0%
   retencaoContratualPerc: number; // Padrão: 5.0%
   impostosPerc: number; // Padrão: 6.65% (PIS + COFINS + ISS)

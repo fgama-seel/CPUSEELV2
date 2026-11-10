@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano revisado incluindo a análise de viabilidade de arquivos do Microsoft Project (.mpp vs .xml nativo do MS Project vs Excel/CSV), com suporte a importação direta de .xml do MS Project (Salvar Como XML no MS Project sem precisar de planilha intermediária), simplificação da Matriz PQ vs. Cronograma em linhas de serviço e ciclo de caixa M/M+1/M+2 editável.",
-  "updatedAt":  "2026-11-09T18:58:39.665060431Z",
+  "summary":  "Plano de implementação atualizado para o histograma dinâmico 100% baseado em composições e cronograma real, com separação estrita por tipo de insumo, distribuição de verbas mensais, alertas de desvio de produtividade, edição manual e trava de linhas por cadeado contra atualizações de cronograma.",
+  "updatedAt":  "2026-11-10T16:43:53.362248961Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -147,25 +147,55 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
   const custoIndiretoConsolidado = custoIndiretoCpus + totalItensIndiretosAvulsos;
   const custoTotalGeral = custoDiretoTotal + custoIndiretoConsolidado;
 
-  // 2. Tarefas do Cronograma MS Project salvas na Obra
-  const tarefasProject = activeObra.cronogramaTarefas || [];
+  // 2. Tarefas do Cronograma MS Project (Prioriza as tarefas do XML importado no Cronograma Executivo)
+  const tarefasProject = useMemo(() => {
+    if (scheduleTasks && scheduleTasks.length > 0) {
+      return scheduleTasks.map((t) => ({
+        id: String(t.uniqueId),
+        idLinha: t.uniqueId,
+        idExclusiva: t.uniqueId,
+        wbs: t.wbs,
+        nivelEstruturaTopicos: t.outlineLevel,
+        nome: t.name,
+        duracaoDias: t.workingDaysDuration || 1,
+        inicio: t.startDate,
+        termino: t.finishDate,
+        percentualConcluido: 0,
+        custoPrevisto: 0,
+        recursos: t.msProjectResourceString || '',
+        isResumo: t.isSummary
+      }));
+    }
+    return activeObra.cronogramaTarefas || [];
+  }, [scheduleTasks, activeObra.cronogramaTarefas]);
 
   // 3. CÁLCULO DA CURVA S REAL (ESTRITAMENTE BASEADA NO CRONOGRAMA FORNECIDO)
-  // Sem cronograma, NENHUM dado fictício é inventado.
   const dadosCurvaS = useMemo(() => {
     if (tarefasProject.length === 0) return [];
 
-    // Filtra tarefas válidas com início, término e custo
-    const tarefasComCusto = tarefasProject.filter(
-      (t) => t.inicio && t.termino && (t.custoPrevisto || 0) > 0 && !t.isResumo
+    // Mapeamento de custos ou receitas de tarefas a partir de allocationLinks da Matriz
+    const mapValoresAlocados = new Map<number, number>();
+    allocationLinks.forEach((link) => {
+      const prev = mapValoresAlocados.get(link.taskUniqueId) || 0;
+      const valLink = link.totalRevenueAllocated > 0 ? link.totalRevenueAllocated : link.totalCostAllocated;
+      mapValoresAlocados.set(link.taskUniqueId, prev + (valLink || 0));
+    });
+    const temAlocacoes = mapValoresAlocados.size > 0;
+
+    // Filtra tarefas válidas com início e término que não sejam resumo de alto nível
+    const tarefasFolhas = tarefasProject.filter(
+      (t) => t.inicio && t.termino && !t.isResumo
     );
 
-    // Se nenhuma folha tem custo, usa tarefas gerais com datas
-    const tarefasParaCurva = tarefasComCusto.length > 0
-      ? tarefasComCusto
-      : tarefasProject.filter((t) => t.inicio && t.termino && !t.isResumo);
+    const tarefasParaCurva = tarefasFolhas.length > 0
+      ? tarefasFolhas
+      : tarefasProject.filter((t) => t.inicio && t.termino);
 
     if (tarefasParaCurva.length === 0) return [];
+
+    // Montante global para distribuição proporcional quando tarefas não trazem custo próprio
+    const montanteReferencia = vendaTotal > 0 ? vendaTotal : custoTotalGeral;
+    const duracaoTotalGeral = tarefasParaCurva.reduce((acc, t) => acc + Math.max(1, t.duracaoDias), 0);
 
     // Identificar meses reais a partir das datas das tarefas
     const mesesMap: Record<string, { mesAno: string; sortKey: string; valorPrevisto: number }> = {};
@@ -175,7 +205,14 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
       const dtFim = new Date(t.termino);
       if (isNaN(dtIni.getTime()) || isNaN(dtFim.getTime()) || dtFim < dtIni) return;
 
-      const custo = Number(t.custoPrevisto) || 0;
+      let valorTarefa = 0;
+      if (temAlocacoes && mapValoresAlocados.has(t.idExclusiva)) {
+        valorTarefa = mapValoresAlocados.get(t.idExclusiva)!;
+      } else if (t.custoPrevisto && t.custoPrevisto > 0) {
+        valorTarefa = Number(t.custoPrevisto);
+      } else if (duracaoTotalGeral > 0 && montanteReferencia > 0) {
+        valorTarefa = (Math.max(1, t.duracaoDias) / duracaoTotalGeral) * montanteReferencia;
+      }
 
       // Calcular número de meses que a tarefa abrange
       const anoIni = dtIni.getFullYear();
@@ -184,7 +221,7 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
       const mesFim = dtFim.getMonth();
 
       const totalMesesTarefa = Math.max(1, (anoFim - anoIni) * 12 + (mesFim - mesIni) + 1);
-      const custoPorMes = custo / totalMesesTarefa;
+      const valorPorMes = valorTarefa / totalMesesTarefa;
 
       let curAno = anoIni;
       let curMes = mesIni;
@@ -201,7 +238,7 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
             valorPrevisto: 0
           };
         }
-        mesesMap[sortKey].valorPrevisto += custoPorMes;
+        mesesMap[sortKey].valorPrevisto += valorPorMes;
 
         curMes++;
         if (curMes > 11) {
@@ -215,7 +252,7 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
     if (chavesOrdenadas.length === 0) return [];
 
     const custoTotalTarefas = chavesOrdenadas.reduce((acc, k) => acc + mesesMap[k].valorPrevisto, 0);
-    const baseCusto = custoTotalTarefas > 0 ? custoTotalTarefas : custoTotalGeral;
+    const baseCusto = custoTotalTarefas > 0 ? custoTotalTarefas : montanteReferencia;
 
     let acumPerc = 0;
     let acumValor = 0;
@@ -236,7 +273,7 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
         acumValor
       };
     });
-  }, [tarefasProject, custoTotalGeral]);
+  }, [tarefasProject, allocationLinks, vendaTotal, custoTotalGeral]);
 
   // 4. CÁLCULO REAL DO HISTOGRAMA (MÃO DE OBRA E EQUIPAMENTOS)
   // Consolidado estritamente a partir dos Insumos Reais das CPUs e dos Itens de Apoio dos Custos Indiretos
@@ -358,30 +395,20 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
     return lista;
   }, [itensIndiretos, cpus, custoTotalGeral]);
 
-  // Dados mensais consolidados para o Gráfico de Histograma (INDIRETA, DIRETA, EQUIPAMENTOS e TOTAL)
-  // Baseado estritamente nas tarefas ativas da obra ou na série de referência SEEL / SABESP
+  // Dados mensais de meses do projeto para o Gráfico de Histograma
   const dadosHistogramaMensal = useMemo<MesHistogramaData[]>(() => {
     const tarefasComData = (scheduleTasks.length > 0
       ? scheduleTasks
       : (activeObra?.cronogramaTarefas || [])
     ).filter((t: any) => (t.startDate || t.inicio) && (t.finishDate || t.termino));
 
+    const mapaMeses: Record<
+      string,
+      { mesAno: string; sortKey: string; indireta: number; direta: number; equipamentos: number; total: number }
+    > = {};
+    const nomesMeses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
     if (tarefasComData.length > 0) {
-      const mapaMeses: Record<
-        string,
-        { mesAno: string; sortKey: string; indireta: number; direta: number; equipamentos: number; total: number }
-      > = {};
-      const nomesMeses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-
-      // Mão de obra indireta média a partir dos custos indiretos reais da obra
-      const moIndiretaMensal = itensIndiretos
-        .filter((i) => i.categoria === 'ADM_LOCAL_MO')
-        .reduce((acc, i) => acc + (Number(i.quantidade) || 1), 0);
-
-      const eqIndiretoMensal = itensIndiretos
-        .filter((i) => i.categoria === 'EQUIPAMENTOS_INDIRETOS')
-        .reduce((acc, i) => acc + (Number(i.quantidade) || 1), 0);
-
       tarefasComData.forEach((t: any) => {
         const dtIni = new Date(t.startDate || t.inicio);
         const dtFim = new Date(t.finishDate || t.termino);
@@ -392,11 +419,6 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
         const anoFim = dtFim.getFullYear();
         const mesFim = dtFim.getMonth();
 
-        const workers = Number(t.workersPerTeam) || 4;
-        const teams = Number(t.teamsCount) || 1;
-        const moDiretaTarefa = workers * teams;
-        const eqTarefa = teams;
-
         while (curAno < anoFim || (curAno === anoFim && curMes <= mesFim)) {
           const sortKey = `${curAno}-${String(curMes + 1).padStart(2, '0')}`;
           const rotulo = `${nomesMeses[curMes]}/${String(curAno).substring(2)}`;
@@ -405,15 +427,12 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
             mapaMeses[sortKey] = {
               mesAno: rotulo,
               sortKey,
-              indireta: moIndiretaMensal > 0 ? moIndiretaMensal : 19,
+              indireta: 0,
               direta: 0,
-              equipamentos: eqIndiretoMensal > 0 ? eqIndiretoMensal : 2,
+              equipamentos: 0,
               total: 0
             };
           }
-
-          mapaMeses[sortKey].direta += moDiretaTarefa;
-          mapaMeses[sortKey].equipamentos += eqTarefa;
 
           curMes++;
           if (curMes > 11) {
@@ -422,49 +441,40 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
           }
         }
       });
+    }
 
-      const chaves = Object.keys(mapaMeses).sort();
-      if (chaves.length > 0) {
-        return chaves.map((k) => {
-          const it = mapaMeses[k];
-          return {
-            ...it,
-            total: it.indireta + it.direta + it.equipamentos
-          };
-        });
+    const chaves = Object.keys(mapaMeses).sort();
+    if (chaves.length > 0) {
+      return chaves.map((k) => mapaMeses[k]);
+    }
+
+    // Se nenhuma data estiver no cronograma, gera um horizonte de 24 meses a partir do mês atual
+    const hoje = new Date();
+    let cAno = hoje.getFullYear();
+    let cMes = hoje.getMonth();
+    const lista: MesHistogramaData[] = [];
+
+    for (let i = 0; i < 24; i++) {
+      const sortKey = `${cAno}-${String(cMes + 1).padStart(2, '0')}`;
+      const rotulo = `${nomesMeses[cMes]}/${String(cAno).substring(2)}`;
+      lista.push({
+        mesAno: rotulo,
+        sortKey,
+        indireta: 0,
+        direta: 0,
+        equipamentos: 0,
+        total: 0
+      });
+
+      cMes++;
+      if (cMes > 11) {
+        cMes = 0;
+        cAno++;
       }
     }
 
-    // Série da imagem de referência SEEL / SABESP (26 meses exatos com substituição de subcontratação por equipamentos)
-    return [
-      { mesAno: 'nov/26', sortKey: '2026-11', indireta: 9, direta: 19, equipamentos: 1, total: 29 },
-      { mesAno: 'dez/26', sortKey: '2026-12', indireta: 9, direta: 19, equipamentos: 1, total: 29 },
-      { mesAno: 'jan/27', sortKey: '2027-01', indireta: 19, direta: 28, equipamentos: 9, total: 56 },
-      { mesAno: 'fev/27', sortKey: '2027-02', indireta: 19, direta: 28, equipamentos: 8, total: 55 },
-      { mesAno: 'mar/27', sortKey: '2027-03', indireta: 19, direta: 28, equipamentos: 8, total: 55 },
-      { mesAno: 'abr/27', sortKey: '2027-04', indireta: 19, direta: 28, equipamentos: 8, total: 55 },
-      { mesAno: 'mai/27', sortKey: '2027-05', indireta: 19, direta: 28, equipamentos: 8, total: 55 },
-      { mesAno: 'jun/27', sortKey: '2027-06', indireta: 19, direta: 28, equipamentos: 21, total: 68 },
-      { mesAno: 'jul/27', sortKey: '2027-07', indireta: 19, direta: 28, equipamentos: 21, total: 68 },
-      { mesAno: 'ago/27', sortKey: '2027-08', indireta: 19, direta: 28, equipamentos: 21, total: 68 },
-      { mesAno: 'set/27', sortKey: '2027-09', indireta: 19, direta: 28, equipamentos: 21, total: 68 },
-      { mesAno: 'out/27', sortKey: '2027-10', indireta: 19, direta: 35, equipamentos: 21, total: 75 },
-      { mesAno: 'nov/27', sortKey: '2027-11', indireta: 19, direta: 51, equipamentos: 21, total: 91 },
-      { mesAno: 'dez/27', sortKey: '2027-12', indireta: 19, direta: 51, equipamentos: 21, total: 91 },
-      { mesAno: 'jan/28', sortKey: '2028-01', indireta: 19, direta: 53, equipamentos: 21, total: 93 },
-      { mesAno: 'fev/28', sortKey: '2028-02', indireta: 19, direta: 34, equipamentos: 15, total: 68 },
-      { mesAno: 'mar/28', sortKey: '2028-03', indireta: 19, direta: 28, equipamentos: 15, total: 62 },
-      { mesAno: 'abr/28', sortKey: '2028-04', indireta: 19, direta: 28, equipamentos: 2, total: 49 },
-      { mesAno: 'mai/28', sortKey: '2028-05', indireta: 19, direta: 20, equipamentos: 2, total: 41 },
-      { mesAno: 'jun/28', sortKey: '2028-06', indireta: 19, direta: 16, equipamentos: 2, total: 37 },
-      { mesAno: 'jul/28', sortKey: '2028-07', indireta: 19, direta: 16, equipamentos: 2, total: 37 },
-      { mesAno: 'ago/28', sortKey: '2028-08', indireta: 19, direta: 16, equipamentos: 2, total: 37 },
-      { mesAno: 'set/28', sortKey: '2028-09', indireta: 19, direta: 10, equipamentos: 2, total: 31 },
-      { mesAno: 'out/28', sortKey: '2028-10', indireta: 19, direta: 0, equipamentos: 2, total: 21 },
-      { mesAno: 'nov/28', sortKey: '2028-11', indireta: 19, direta: 0, equipamentos: 2, total: 21 },
-      { mesAno: 'dez/28', sortKey: '2028-12', indireta: 0, direta: 0, equipamentos: 0, total: 0 }
-    ];
-  }, [scheduleTasks, activeObra?.cronogramaTarefas, itensIndiretos]);
+    return lista;
+  }, [scheduleTasks, activeObra?.cronogramaTarefas]);
 
   // Filtragem dos recursos do Histograma
   const recursosFiltrados = useMemo(() => {
@@ -929,7 +939,15 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
             </div>
 
             {/* GRÁFICO DE BARRAS CLUSTERIZADO + LINHA VERDE + DATA TABLE (PADRÃO IMAGEM DE REFERÊNCIA) */}
-            <GraficoHistogramaBarras dados={dadosHistogramaMensal} activeObra={activeObra} />
+            <GraficoHistogramaBarras
+              dados={dadosHistogramaMensal}
+              activeObra={activeObra}
+              cpus={cpus}
+              pqItems={pqItems}
+              allocationLinks={allocationLinks}
+              scheduleTasks={scheduleTasks}
+              itensIndiretos={itensIndiretos}
+            />
 
             {/* SEPARADOR E DETALHAMENTO DE RECURSOS DA OBRA */}
             <div className="pt-2">
