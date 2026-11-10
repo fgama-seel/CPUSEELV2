@@ -22,15 +22,19 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
-  Wrench
+  Wrench,
+  Edit3,
+  Save,
+  Calendar
 } from 'lucide-react';
-import { Obra, CPU, TarefaCronograma, ItemCustoIndireto } from '../types';
+import { Obra, CPU, TarefaCronograma, ItemCustoIndireto, ScheduleTask, AllocationLink, PQItem, ParametrosFluxoCaixa } from '../types';
 import {
   formatMoney,
   exportarCurvaS,
   exportarHistogramaRecursos,
   exportarCronogramaProject
 } from '../lib/excelExport';
+import { calculateTemporalProjections } from '../lib/allocationEngine';
 import { subscribeCustosIndiretos } from '../services/dbService';
 import { ModalImportarCronogramaProject } from './ModalImportarCronogramaProject';
 import { ModalPadraoPlanilhaProject } from './ModalPadraoPlanilhaProject';
@@ -39,6 +43,11 @@ interface AbaRelatoriosGerenciaisProps {
   activeObra: Obra | null;
   cpus: CPU[];
   onSelectTab?: (tab: any) => void;
+  scheduleTasks?: any[];
+  allocationLinks?: any[];
+  pqItems?: any[];
+  parametrosCaixa?: any;
+  onUpdateParametrosCaixa?: (params: any) => void;
 }
 
 interface RecursoConsolidado {
@@ -57,12 +66,20 @@ interface RecursoConsolidado {
 export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = ({
   activeObra,
   cpus,
-  onSelectTab
+  onSelectTab,
+  scheduleTasks,
+  allocationLinks,
+  pqItems,
+  parametrosCaixa,
+  onUpdateParametrosCaixa
 }) => {
-  const [subTab, setSubTab] = useState<'curva_s' | 'histograma' | 'cronograma'>('curva_s');
+  const [subTab, setSubTab] = useState<'curva_s' | 'histograma'>('curva_s');
   const [isModalProjectOpen, setIsModalProjectOpen] = useState(false);
   const [isModalPadraoOpen, setIsModalPadraoOpen] = useState(false);
   const [itensIndiretos, setItensIndiretos] = useState<ItemCustoIndireto[]>([]);
+  const [editingMes, setEditingMes] = useState<string | null>(null);
+  const [editFatVal, setEditFatVal] = useState<number>(0);
+  const [editRecVal, setEditRecVal] = useState<number>(0);
 
   // Filtros do Histograma
   const [filtroCategoria, setFiltroCategoria] = useState<'TODOS' | 'MO' | 'EQ'>('TODOS');
@@ -463,7 +480,7 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
             }`}
           >
             <TrendingUp className="w-4 h-4 text-indigo-600" />
-            <span>Curva S de Desembolso Financeiro</span>
+            <span>Curva S, Desembolso & Fluxo de Caixa (M / M+1 / M+2)</span>
           </button>
 
           <button
@@ -477,18 +494,6 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
             <Users className="w-4 h-4 text-blue-600" />
             <span>Histograma de Recursos (MO & Equipamentos)</span>
           </button>
-
-          <button
-            onClick={() => setSubTab('cronograma')}
-            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              subTab === 'cronograma'
-                ? 'bg-white text-indigo-700 border-t-2 border-indigo-600 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <CalendarRange className="w-4 h-4 text-emerald-600" />
-            <span>Estrutura EAP do MS Project (ID Exclusiva)</span>
-          </button>
         </div>
 
         {/* CONTEÚDO 1: CURVA S DE DESEMBOLSO (REAL, SEM DADOS FICTÍCIOS) */}
@@ -501,7 +506,7 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
                   <span>Curva S & Cronograma Físico-Financeiro</span>
                 </h4>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Calculado estritamente a partir das datas de Início, Término e Custos das tarefas importadas do MS Project.
+                  Calculado a partir das tarefas do cronograma com ciclo de caixa configurável (Produção em M, Faturamento em M+1 e Recebimento em M+2).
                 </p>
               </div>
 
@@ -518,7 +523,81 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
               )}
             </div>
 
-            {/* SE NÃO HOUVER CRONOGRAMA IMPORTADO, NÃO MOSTRA NADA FICTÍCIO */}
+            {/* PAINEL DE CONTROLE DO CICLO OPERACIONAL: M -> M+1 -> M+2 */}
+            {parametrosCaixa && onUpdateParametrosCaixa && (
+              <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-4 rounded-xl shadow-sm border border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-cyan-400" />
+                    Ciclo Temporal de Produção, Faturamento e Recebimento
+                  </div>
+                  <span className="text-[11px] text-slate-400">
+                    Edite os prazos globais ou ajuste meses específicos diretamente na tabela abaixo
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
+                    <label className="text-[11px] text-slate-300 block mb-1">
+                      1. Produção Física
+                    </label>
+                    <span className="font-bold text-emerald-400 font-mono text-sm">
+                      Mês M (Execução em Campo)
+                    </span>
+                  </div>
+
+                  <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
+                    <label className="text-[11px] text-slate-300 block mb-1">
+                      2. Emissão de Faturamento
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-white">M +</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="12"
+                        value={parametrosCaixa.mesFaturamentoOffset !== undefined ? parametrosCaixa.mesFaturamentoOffset : 1}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10) || 0;
+                          onUpdateParametrosCaixa({
+                            ...parametrosCaixa,
+                            mesFaturamentoOffset: val
+                          });
+                        }}
+                        className="w-16 bg-white/20 border border-white/20 text-white font-mono font-bold px-2 py-1 rounded text-center"
+                      />
+                      <span className="text-[10px] text-slate-300">mês (Padrão: M+1)</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
+                    <label className="text-[11px] text-slate-300 block mb-1">
+                      3. Liquidação / Recebimento em Caixa
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-white">M +</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="12"
+                        value={parametrosCaixa.mesRecebimentoOffset !== undefined ? parametrosCaixa.mesRecebimentoOffset : 2}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10) || 0;
+                          onUpdateParametrosCaixa({
+                            ...parametrosCaixa,
+                            mesRecebimentoOffset: val
+                          });
+                        }}
+                        className="w-16 bg-white/20 border border-white/20 text-white font-mono font-bold px-2 py-1 rounded text-center"
+                      />
+                      <span className="text-[10px] text-slate-300">meses (Padrão: M+2)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SE NÃO HOUVER DADOS DE CRONOGRAMA */}
             {dadosCurvaS.length === 0 ? (
               <div className="p-10 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 space-y-4">
                 <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-600">
@@ -526,29 +605,11 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
                 </div>
                 <div className="max-w-md mx-auto space-y-1">
                   <h4 className="text-sm font-bold text-slate-800">
-                    Nenhum cronograma importado para cálculo da Curva S
+                    Aguardando cronograma para projeção da Curva S
                   </h4>
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    Para calcular o físico-financeiro e a Curva S real sem estimativas fictícias, o sistema necessita das datas de <strong>Início</strong>, <strong>Término</strong> e <strong>Custo</strong> das tarefas do MS Project.
+                    Importe seu cronograma na aba <strong>Cronograma Executivo</strong> para calcular a evolução financeira e o fluxo de caixa real.
                   </p>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                  <button
-                    onClick={() => setIsModalProjectOpen(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition flex items-center gap-2 cursor-pointer"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Importar Arquivo do MS Project</span>
-                  </button>
-
-                  <button
-                    onClick={() => setIsModalPadraoOpen(true)}
-                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition flex items-center gap-2 cursor-pointer"
-                  >
-                    <HelpCircle className="w-4 h-4 text-amber-400" />
-                    <span>Ver Padrão de Planilha Necessário</span>
-                  </button>
                 </div>
               </div>
             ) : (
@@ -604,38 +665,103 @@ export const AbaRelatoriosGerenciais: React.FC<AbaRelatoriosGerenciaisProps> = (
                   </div>
                 </div>
 
-                {/* TABELA DE DESEMBOLSO MÊS A MÊS */}
+                {/* TABELA DE DESEMBOLSO MÊS A MÊS COM AJUSTES MANUAIS */}
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-slate-800 text-white uppercase tracking-wider text-[11px]">
                         <th className="p-2.5">Mês / Ano</th>
                         <th className="p-2.5 text-center">Nº Mês</th>
-                        <th className="p-2.5 text-right">% Desembolso Mês</th>
-                        <th className="p-2.5 text-right">Valor Previsto Mês</th>
+                        <th className="p-2.5 text-right">Custo Desembolso Mês</th>
+                        <th className="p-2.5 text-right">% Desembolso</th>
+                        <th className="p-2.5 text-right">Faturamento Previsto</th>
                         <th className="p-2.5 text-right">% Acumulado</th>
-                        <th className="p-2.5 text-right">Valor Acumulado</th>
+                        <th className="p-2.5 text-right">Custo Acumulado</th>
+                        <th className="p-2.5 text-center w-20">Ajuste Manual</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                      {dadosCurvaS.map((d) => (
-                        <tr key={d.sortKey} className="hover:bg-slate-50">
-                          <td className="p-2.5 font-bold text-slate-800 font-sans">{d.mes}</td>
-                          <td className="p-2.5 text-center text-slate-400">{d.num}</td>
-                          <td className="p-2.5 text-right text-indigo-700 font-bold">{d.percDesembolso.toFixed(2)}%</td>
-                          <td className="p-2.5 text-right text-slate-800">{formatMoney(d.valorMensal)}</td>
-                          <td className="p-2.5 text-right text-emerald-700 font-black">{d.acumPerc.toFixed(2)}%</td>
-                          <td className="p-2.5 text-right font-black text-slate-900">{formatMoney(d.acumValor)}</td>
-                        </tr>
-                      ))}
+                      {dadosCurvaS.map((d) => {
+                        const ajuste = parametrosCaixa?.ajustesMensaisManual?.[d.mes];
+                        const isEditingThis = editingMes === d.mes;
+
+                        return (
+                          <tr key={d.sortKey} className="hover:bg-slate-50">
+                            <td className="p-2.5 font-bold text-slate-800 font-sans">
+                              {d.mes}
+                              {ajuste && (
+                                <span className="ml-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 font-sans">
+                                  Editado
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2.5 text-center text-slate-400">{d.num}</td>
+                            <td className="p-2.5 text-right text-slate-800">{formatMoney(d.valorMensal)}</td>
+                            <td className="p-2.5 text-right text-indigo-700 font-bold">{d.percDesembolso.toFixed(2)}%</td>
+                            <td className="p-2.5 text-right font-bold text-cyan-800">
+                              {isEditingThis ? (
+                                <input
+                                  type="number"
+                                  value={editFatVal}
+                                  onChange={(e) => setEditFatVal(parseFloat(e.target.value) || 0)}
+                                  className="w-28 text-right bg-white border border-indigo-500 rounded p-1 font-mono font-bold"
+                                />
+                              ) : (
+                                formatMoney(ajuste?.faturamento !== undefined ? ajuste.faturamento : d.valorMensal * 1.25)
+                              )}
+                            </td>
+                            <td className="p-2.5 text-right text-emerald-700 font-black">{d.acumPerc.toFixed(2)}%</td>
+                            <td className="p-2.5 text-right font-black text-slate-900">{formatMoney(d.acumValor)}</td>
+                            <td className="p-2.5 text-center">
+                              {isEditingThis ? (
+                                <button
+                                  onClick={() => {
+                                    if (onUpdateParametrosCaixa && parametrosCaixa) {
+                                      const nextAjustes = {
+                                        ...(parametrosCaixa.ajustesMensaisManual || {}),
+                                        [d.mes]: {
+                                          ...(parametrosCaixa.ajustesMensaisManual?.[d.mes] || {}),
+                                          faturamento: editFatVal
+                                        }
+                                      };
+                                      onUpdateParametrosCaixa({
+                                        ...parametrosCaixa,
+                                        ajustesMensaisManual: nextAjustes
+                                      });
+                                    }
+                                    setEditingMes(null);
+                                  }}
+                                  className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                                  title="Salvar ajuste"
+                                >
+                                  <Save className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setEditingMes(d.mes);
+                                    setEditFatVal(ajuste?.faturamento !== undefined ? ajuste.faturamento : d.valorMensal * 1.25);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition"
+                                  title="Editar faturamento deste mês"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                     <tfoot>
                       <tr className="bg-slate-100 font-black text-slate-900 border-t-2 border-slate-300">
                         <td colSpan={2} className="p-2.5 text-right uppercase text-xs">Total do Cronograma:</td>
-                        <td className="p-2.5 text-right text-indigo-700 font-mono">100.00%</td>
                         <td className="p-2.5 text-right font-mono">{formatMoney(dadosCurvaS[dadosCurvaS.length - 1]?.acumValor || 0)}</td>
+                        <td className="p-2.5 text-right text-indigo-700 font-mono">100.00%</td>
+                        <td className="p-2.5 text-right font-mono">-</td>
                         <td className="p-2.5 text-right text-emerald-700 font-mono">100.00%</td>
                         <td className="p-2.5 text-right text-emerald-800 font-mono text-sm">{formatMoney(dadosCurvaS[dadosCurvaS.length - 1]?.acumValor || 0)}</td>
+                        <td></td>
                       </tr>
                     </tfoot>
                   </table>

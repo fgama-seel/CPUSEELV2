@@ -125,6 +125,63 @@
         "custoTotal": { "type": "number" }
       },
       "required": ["id", "obraId", "categoria", "descricao", "custoTotal"]
+    },
+    "pqItems": {
+      "title": "Itens da Planilha de Quantidades",
+      "description": "Itens contratuais de medição da PQ comercial",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "parentId": { "type": "string" },
+        "lote": { "type": "string" },
+        "grupo": { "type": "string" },
+        "descricao": { "type": "string" },
+        "unidade": { "type": "string" },
+        "quantidadeOrcada": { "type": "number" },
+        "precoUnitarioVenda": { "type": "number" },
+        "precoUnitarioCustoDireto": { "type": "number" }
+      },
+      "required": ["id", "descricao", "quantidadeOrcada", "precoUnitarioVenda"]
+    },
+    "scheduleTasks": {
+      "title": "Tarefas do Cronograma Executivo",
+      "description": "Tarefas da EAP do MS Project com Id exclusiva e produtividade",
+      "type": "object",
+      "properties": {
+        "uniqueId": { "type": "number" },
+        "wbs": { "type": "string" },
+        "outlineLevel": { "type": "number" },
+        "name": { "type": "string" },
+        "startDate": { "type": "string" },
+        "finishDate": { "type": "string" },
+        "physicalQuantity": { "type": "number" },
+        "workingDaysDuration": { "type": "number" }
+      },
+      "required": ["uniqueId", "name", "startDate", "finishDate"]
+    },
+    "allocationLinks": {
+      "title": "Vínculos de Alocação PQ vs Cronograma",
+      "description": "Matriz associativa N:M com as 6 regras de rateio e memória de cálculo",
+      "type": "object",
+      "properties": {
+        "seq": { "type": "number" },
+        "pqItemId": { "type": "string" },
+        "taskUniqueId": { "type": "number" },
+        "allocationRule": { "type": "string" },
+        "calculatedQuantity": { "type": "number" }
+      },
+      "required": ["seq", "pqItemId", "taskUniqueId", "allocationRule", "calculatedQuantity"]
+    },
+    "weeklyProgress": {
+      "title": "Apontamento Semanal de Avanço Físico",
+      "description": "Avanço físico semanal por seq com ponderação por custo para o MS Project",
+      "type": "object",
+      "properties": {
+        "seq": { "type": "number" },
+        "semana": { "type": "string" },
+        "quantidadeRealizadaSemana": { "type": "number" }
+      },
+      "required": ["seq", "semana", "quantidadeRealizadaSemana"]
     }
   }
 }

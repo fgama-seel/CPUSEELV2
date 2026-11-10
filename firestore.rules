@@ -20,5 +20,25 @@ service cloud.firestore {
     match /custosIndiretos/{itemId} {
       allow read, write: if true;
     }
+
+    match /pqItems/{itemId} {
+      allow read, write: if true;
+    }
+
+    match /scheduleTasks/{itemId} {
+      allow read, write: if true;
+    }
+
+    match /allocationLinks/{itemId} {
+      allow read, write: if true;
+    }
+
+    match /weeklyProgress/{itemId} {
+      allow read, write: if true;
+    }
+
+    match /obraPlanningConfig/{itemId} {
+      allow read, write: if true;
+    }
   }
 }

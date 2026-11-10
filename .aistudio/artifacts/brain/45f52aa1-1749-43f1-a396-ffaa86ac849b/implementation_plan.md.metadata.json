@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação revisado com a inclusão de Nível de Estrutura de Tópicos (Outline Level para hierarquia WBS/EAP) e ID Exclusiva (Unique ID do MS Project) no modelo de dados, no parser de importação Excel/CSV e na visualização em árvore hierárquica com recuo.",
-  "updatedAt":  "2026-11-09T12:46:54.167877487Z",
+  "summary":  "Plano revisado incluindo a análise de viabilidade de arquivos do Microsoft Project (.mpp vs .xml nativo do MS Project vs Excel/CSV), com suporte a importação direta de .xml do MS Project (Salvar Como XML no MS Project sem precisar de planilha intermediária), simplificação da Matriz PQ vs. Cronograma em linhas de serviço e ciclo de caixa M/M+1/M+2 editável.",
+  "updatedAt":  "2026-11-09T18:58:39.665060431Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

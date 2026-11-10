@@ -247,3 +247,150 @@ export interface UserAuth {
   displayName: string;
   photoURL?: string;
 }
+
+// ==========================================
+// MÓDULO MATRIZ PQ vs CRONOGRAMA & ENGENHARIA REVERSA SEEL/SABESP
+// ==========================================
+
+export interface PQItem {
+  id: string; // ex: "3010103", "60101021"
+  parentId: string | null; // ex: "6010102"
+  obraId?: string;
+  lote: 'LOTE 1' | 'LOTE 2' | string;
+  grupo: string; // ex: "03 - PERFURAÇÕES PARA INJEÇÕES"
+  descricao: string;
+  unidade: string; // "M", "KG", "M3", "GB", "MES", "un"
+  quantidadeOrcada: number;
+  precoUnitarioVenda: number;
+  precoUnitarioCustoDireto: number; // vindo da CPU, sem BDI/indireto
+  isSplitParent?: boolean; // Se true, é cabeçalho de item desmembrado (ex: 6010102)
+  splitRatioVenda?: number; // 0.40 para fornecimento ou 0.60 para aplicação
+  codigoRecursoProject?: string; // ex: "3010103"
+}
+
+export interface ScheduleTask {
+  uniqueId: number; // Id exclusiva do MS Project (Chave Primária)
+  wbs: string; // EDT, ex: "1.1.1.2.2.2.16.1"
+  outlineLevel: number; // Nível 1 a 8 (Nível 7 = Pacote/Bloco, Nível 8 = Tarefa Executiva)
+  parentUniqueId: number | null;
+  name: string; // Nome da Tarefa
+  startDate: string; // Data Início (YYYY-MM-DD)
+  finishDate: string; // Data Término (YYYY-MM-DD)
+  physicalQuantity: number; // Quantidade física própria da tarefa no cronograma
+  unit: string;
+  dailyProductivityPerTeam: number; // PROD. P/DU
+  teamsCount: number; // EQUIPES
+  workersPerTeam: number; // QTD PESSOAS/EQ
+  workingDaysDuration: number; // ROUNDUP(physicalQuantity / (dailyProductivityPerTeam * teamsCount))
+  isSummary?: boolean; // Se é tarefa resumo
+  msProjectResourceString?: string; // Texto formatado: item[qtd unid];...
+  rollUpResourceString?: string; // Para tarefas de Nível 7 (Roll-up)
+}
+
+export type AllocationRuleType =
+  | 'DIRECT_1_1'
+  | 'TASK_QUANTITY_LOOKUP'
+  | 'PROPORTIONAL_TO_TASK_QTY'
+  | 'PROPORTIONAL_TO_DURATION'
+  | 'UNIFORM_SPLIT'
+  | 'CROSS_ITEM_FACTOR'
+  | 'MANUAL';
+
+export interface AllocationRuleParams {
+  groupTaskIds?: number[]; // IDs das tarefas do grupo de rateio
+  sourceSeqOrItemId?: string; // Item base de dependência cruzada
+  technicalFactor?: number; // ex: 0.08 (8cm espessura) ou 3.0 m/furo
+  manualQuantity?: number;
+}
+
+export interface AllocationLink {
+  seq: number; // Identificador sequencial único do vínculo (ex: 1, 2, ... 1479)
+  obraId?: string;
+  pqItemId: string; // FK para PQItem.id
+  taskUniqueId: number; // FK para ScheduleTask.uniqueId
+  allocationRule: AllocationRuleType;
+  ruleParams?: AllocationRuleParams;
+  calculatedQuantity: number; // QUANT. MEMÓRIA DE CÁLCULO
+  totalCostAllocated: number; // calculatedQuantity * pqItem.precoUnitarioCustoDireto
+  totalRevenueAllocated: number; // calculatedQuantity * pqItem.precoUnitarioVenda
+  observacoes?: string;
+}
+
+export interface WeeklyProgressItem {
+  seq: number; // FK para AllocationLink.seq
+  semana: string; // ex: "Sem 01 (Jan/26)", "Sem 02 (Jan/26)"
+  semanaNumero: number;
+  quantidadeRealizadaSemana: number;
+  dataApontamento?: string;
+  observacao?: string;
+}
+
+export interface ParametrosFluxoCaixa {
+  lagFaturamentoMeses: number; // Padrão: 2 meses (60 dias)
+  mesProducaoOffset?: number; // 0 = Produz no Mês M
+  mesFaturamentoOffset?: number; // 1 = Fatura no Mês M+1
+  mesRecebimentoOffset?: number; // 2 = Recebe no Mês M+2
+  ajustesMensaisManual?: Record<string, { faturamento?: number; recebimento?: number }>;
+  descontoAdiantamentoPerc: number; // Padrão: 13.0%
+  retencaoContratualPerc: number; // Padrão: 5.0%
+  impostosPerc: number; // Padrão: 6.65% (PIS + COFINS + ISS)
+  adiantamentoInicialValor?: number;
+  devolucaoRetencaoMesFinal?: boolean;
+  productivityMultiplier: number; // 1.0 = Base, 1.25 = +25% de produtividade
+}
+
+export interface ProjecaoMensalDRE {
+  mesAno: string; // "jan/26", "fev/26"
+  mesNumero: number;
+  diasUteisMes: number;
+
+  // Lote 1
+  producaoLote1: number;
+  custoDiretoLote1: number;
+
+  // Lote 2
+  producaoLote2: number;
+  custoDiretoLote2: number;
+
+  // Totais de Produção e Custos
+  producaoBrutaTotal: number;
+  custoDiretoTotal: number;
+  custoIndiretoTotal: number; // Custo indireto rateado linearmente pelos meses
+  custoTotal: number;
+
+  // Faturamento e Caixa
+  faturamentoMensal: number;
+  descontoAdiantamento: number;
+  retencaoContratual: number;
+  impostos: number;
+  recebimentoLiquido: number;
+  fluxoCaixaMensal: number;
+  fluxoCaixaAcumulado: number;
+}
+
+export interface VersaoCronograma {
+  id: string;
+  obraId: string;
+  nome: string; // ex: "Revisão R00 - Inicial"
+  descricao?: string;
+  nomeArquivo?: string;
+  tipoArquivo?: 'xml' | 'csv' | 'manual';
+  criadoEm: string;
+  tarefasCount: number;
+  tarefas: ScheduleTask[];
+}
+
+export interface RecursoProjectConfig {
+  id: string; // Identificador único (geralmente o ID ou código da PQ/CPU)
+  obraId?: string;
+  nomeRecurso: string; // Nome do Recurso no Project (ex: "3010103" ou definido pelo usuário)
+  descricaoRecurso: string; // Descrição completa do item da PQ / CPU
+  unidadeMaterial: string; // Unidade do material (M, KG, M3, un, MES, etc.)
+  tipo: 'Material'; // Tipo fixo "Material"
+  custoCpu: number; // Taxa Padrão -> Custo Unitário Direto da CPU
+  vendaCpu: number; // Custo -> Valor de Venda Unitário da PQ
+  pqItemId?: string;
+  cpuId?: string;
+  observacoes?: string;
+}
+

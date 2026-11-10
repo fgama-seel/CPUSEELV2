@@ -18,16 +18,20 @@ import {
   Briefcase,
   BarChart3,
   CalendarRange,
+  Calendar,
   Layers,
-  Sparkles
+  Sparkles,
+  GitMerge
 } from 'lucide-react';
 import { Obra, CPU } from '../types';
 
 export type TabKey =
   | 'resumo'
+  | 'matriz-pq'
+  | 'cronograma'
+  | 'relatorios'
   | 'tabela'
   | 'indiretos'
-  | 'relatorios'
   | 'abc'
   | 'insumos'
   | 'acessos'
@@ -85,10 +89,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems: { key: TabKey; label: string; icon: React.ElementType; color: string; dotColor: string }[] = [
     { key: 'resumo', label: 'Resumo do Contrato', icon: PieChart, color: 'text-emerald-400', dotColor: 'bg-emerald-400' },
+    { key: 'matriz-pq', label: 'Matriz PQ vs Cronograma', icon: GitMerge, color: 'text-cyan-400', dotColor: 'bg-cyan-400' },
+    { key: 'cronograma', label: 'Cronograma Executivo', icon: Calendar, color: 'text-indigo-400', dotColor: 'bg-indigo-400' },
+    { key: 'relatorios', label: 'Relatórios Gerenciais', icon: BarChart3, color: 'text-purple-400', dotColor: 'bg-purple-400' },
     { key: 'tabela', label: 'Tabela de CPUs', icon: Table, color: 'text-blue-400', dotColor: 'bg-blue-400' },
     { key: 'indiretos', label: 'Custos Indiretos', icon: Briefcase, color: 'text-amber-400', dotColor: 'bg-amber-400' },
-    { key: 'relatorios', label: 'Relatórios & Cronograma', icon: BarChart3, color: 'text-indigo-400', dotColor: 'bg-indigo-400' },
-    { key: 'abc', label: 'Curva ABC Insumos', icon: Boxes, color: 'text-purple-400', dotColor: 'bg-purple-400' },
+    { key: 'abc', label: 'Curva ABC Insumos', icon: Boxes, color: 'text-pink-400', dotColor: 'bg-pink-400' },
     { key: 'insumos', label: 'Banco de Insumos', icon: Package, color: 'text-teal-400', dotColor: 'bg-teal-400' }
   ];
 

@@ -29,9 +29,12 @@ import { ordenarInsumosCPU } from './lib/mochilaDefaults';
 import { Header } from './components/Header';
 import { Sidebar, TabKey } from './components/Sidebar';
 import { AbaResumo } from './components/AbaResumo';
+import { AbaMatrizPQ } from './components/AbaMatrizPQ';
+import { AbaCronogramaExecutivo } from './components/AbaCronogramaExecutivo';
 import { AbaTabelaCPUs } from './components/AbaTabelaCPUs';
 import { AbaCustosIndiretos } from './components/AbaCustosIndiretos';
 import { AbaRelatoriosGerenciais } from './components/AbaRelatoriosGerenciais';
+import { ScheduleTask, AllocationLink, PQItem, ParametrosFluxoCaixa, VersaoCronograma, RecursoProjectConfig } from './types';
 import { AbaABCInsumos } from './components/AbaABCInsumos';
 import { AbaInsumosCadastrados } from './components/AbaInsumosCadastrados';
 import { AbaGestaoAcessos } from './components/AbaGestaoAcessos';
@@ -64,6 +67,96 @@ export default function App() {
 
   // Tab State
   const [activeTab, setActiveTab] = useState<TabKey>('resumo');
+
+  // Shared Planning State (Strictly Isolated per Obra - Clean by default for real testing)
+  const [pqItems, setPqItems] = useState<PQItem[]>([]);
+  const [scheduleTasks, setScheduleTasks] = useState<ScheduleTask[]>([]);
+  const [allocationLinks, setAllocationLinks] = useState<AllocationLink[]>([]);
+  const [recursosConfig, setRecursosConfig] = useState<RecursoProjectConfig[]>([]);
+  const [versoesCronograma, setVersoesCronograma] = useState<VersaoCronograma[]>([]);
+  const [parametrosCaixa, setParametrosCaixa] = useState<ParametrosFluxoCaixa>({
+    lagFaturamentoMeses: 2,
+    mesProducaoOffset: 0,
+    mesFaturamentoOffset: 1,
+    mesRecebimentoOffset: 2,
+    descontoAdiantamentoPerc: 13.0,
+    retencaoContratualPerc: 5.0,
+    impostosPerc: 6.65,
+    productivityMultiplier: 1.0
+  });
+
+  // Reativo à troca de activeObraId: carrega estritamente os dados da obra selecionada
+  useEffect(() => {
+    if (!activeObraId) return;
+    const oKey = activeObraId;
+
+    const savedPq = localStorage.getItem(`seel_matriz_${oKey}_pq`);
+    const savedTasks = localStorage.getItem(`seel_matriz_${oKey}_tasks`);
+    const savedLinks = localStorage.getItem(`seel_matriz_${oKey}_links`);
+    const savedRecursos = localStorage.getItem(`seel_matriz_${oKey}_recursos`);
+    const savedVersoes = localStorage.getItem(`seel_matriz_${oKey}_versoes`);
+    const savedParams = localStorage.getItem(`seel_matriz_${oKey}_params`);
+
+    // Início 100% limpo caso não tenha dados salvos para esta obra
+    setPqItems(savedPq ? JSON.parse(savedPq) : []);
+    setScheduleTasks(savedTasks ? JSON.parse(savedTasks) : []);
+    setAllocationLinks(savedLinks ? JSON.parse(savedLinks) : []);
+    setRecursosConfig(savedRecursos ? JSON.parse(savedRecursos) : []);
+    setVersoesCronograma(savedVersoes ? JSON.parse(savedVersoes) : []);
+    setParametrosCaixa(savedParams ? JSON.parse(savedParams) : {
+      lagFaturamentoMeses: 2,
+      mesProducaoOffset: 0,
+      mesFaturamentoOffset: 1,
+      mesRecebimentoOffset: 2,
+      descontoAdiantamentoPerc: 13.0,
+      retencaoContratualPerc: 5.0,
+      impostosPerc: 6.65,
+      productivityMultiplier: 1.0
+    });
+  }, [activeObraId]);
+
+  // Handlers que salvam estritamente na chave da obra ativa
+  const handleUpdatePqItems = (newPq: PQItem[]) => {
+    setPqItems(newPq);
+    if (activeObraId) {
+      localStorage.setItem(`seel_matriz_${activeObraId}_pq`, JSON.stringify(newPq));
+    }
+  };
+
+  const handleUpdateScheduleTasks = (newTasks: ScheduleTask[]) => {
+    setScheduleTasks(newTasks);
+    if (activeObraId) {
+      localStorage.setItem(`seel_matriz_${activeObraId}_tasks`, JSON.stringify(newTasks));
+    }
+  };
+
+  const handleUpdateAllocationLinks = (newLinks: AllocationLink[]) => {
+    setAllocationLinks(newLinks);
+    if (activeObraId) {
+      localStorage.setItem(`seel_matriz_${activeObraId}_links`, JSON.stringify(newLinks));
+    }
+  };
+
+  const handleUpdateRecursosConfig = (newRecursos: RecursoProjectConfig[]) => {
+    setRecursosConfig(newRecursos);
+    if (activeObraId) {
+      localStorage.setItem(`seel_matriz_${activeObraId}_recursos`, JSON.stringify(newRecursos));
+    }
+  };
+
+  const handleUpdateVersoesCronograma = (newVersoes: VersaoCronograma[]) => {
+    setVersoesCronograma(newVersoes);
+    if (activeObraId) {
+      localStorage.setItem(`seel_matriz_${activeObraId}_versoes`, JSON.stringify(newVersoes));
+    }
+  };
+
+  const handleUpdateParametrosCaixa = (newParams: ParametrosFluxoCaixa) => {
+    setParametrosCaixa(newParams);
+    if (activeObraId) {
+      localStorage.setItem(`seel_matriz_${activeObraId}_params`, JSON.stringify(newParams));
+    }
+  };
 
   // Pending Changes State
   const [pendingChanges, setPendingChanges] = useState<boolean>(() => Object.keys(getPendingCPUs()).length > 0);
@@ -400,12 +493,31 @@ export default function App() {
                     />
                   )}
 
-                  {activeTab === 'indiretos' && (
-                    <AbaCustosIndiretos
+                  {activeTab === 'matriz-pq' && (
+                    <AbaMatrizPQ
                       activeObra={activeObra}
                       cpus={cpus}
-                      onSelectTab={setActiveTab}
-                      onSelectCpu={handleSelectCpu}
+                      tasks={scheduleTasks}
+                      onUpdateTasks={handleUpdateScheduleTasks}
+                      pqItems={pqItems}
+                      onUpdatePqItems={handleUpdatePqItems}
+                      allocationLinks={allocationLinks}
+                      onUpdateAllocationLinks={handleUpdateAllocationLinks}
+                      recursosConfig={recursosConfig}
+                      onUpdateRecursosConfig={handleUpdateRecursosConfig}
+                    />
+                  )}
+
+                  {activeTab === 'cronograma' && (
+                    <AbaCronogramaExecutivo
+                      activeObra={activeObra}
+                      tasks={scheduleTasks}
+                      onUpdateTasks={handleUpdateScheduleTasks}
+                      allocationLinks={allocationLinks}
+                      pqItems={pqItems}
+                      recursosConfig={recursosConfig}
+                      versoes={versoesCronograma}
+                      onUpdateVersoes={handleUpdateVersoesCronograma}
                     />
                   )}
 
@@ -414,6 +526,20 @@ export default function App() {
                       activeObra={activeObra}
                       cpus={cpus}
                       onSelectTab={setActiveTab}
+                      scheduleTasks={scheduleTasks}
+                      allocationLinks={allocationLinks}
+                      pqItems={pqItems}
+                      parametrosCaixa={parametrosCaixa}
+                      onUpdateParametrosCaixa={handleUpdateParametrosCaixa}
+                    />
+                  )}
+
+                  {activeTab === 'indiretos' && (
+                    <AbaCustosIndiretos
+                      activeObra={activeObra}
+                      cpus={cpus}
+                      onSelectTab={setActiveTab}
+                      onSelectCpu={handleSelectCpu}
                     />
                   )}
 
