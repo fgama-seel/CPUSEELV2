@@ -134,12 +134,15 @@ export interface ItemCustoIndireto {
   id: string;
   obraId?: string;
   categoria: CategoriaIndireto;
+  idInsumoBase?: string; // FK do insumo no Banco de Insumos
   codigo?: string;
   descricao: string;
   unidade: string;
   quantidade: number;
   precoUnitario: number;
   custoTotal: number;
+  dataInicio?: string; // Data de início do recurso indireto (YYYY-MM-DD)
+  dataFim?: string; // Data de término do recurso indireto (YYYY-MM-DD)
   combustivelUnitario?: number; // Para veículos/equipamentos
   distribuicaoMensal?: Record<string, number>; // mês (ex: "jan/26") -> quantidade
   observacoes?: string;

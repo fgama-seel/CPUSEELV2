@@ -23,10 +23,11 @@ import {
   TrendingUp,
   DollarSign
 } from 'lucide-react';
-import { Obra, CPU, ItemCustoIndireto, CategoriaIndireto, TaxasCorporativasObra } from '../types';
+import { Obra, CPU, ItemCustoIndireto, CategoriaIndireto, TaxasCorporativasObra, InsumoBase } from '../types';
 import { formatMoney } from '../lib/excelExport';
 import {
   subscribeCustosIndiretos,
+  subscribeBancoInsumos,
   saveItemCustoIndireto,
   deleteItemCustoIndireto,
   batchSaveCustosIndiretos,
@@ -96,6 +97,7 @@ export const AbaCustosIndiretos: React.FC<AbaCustosIndiretosProps> = ({
   onSelectCpu
 }) => {
   const [itensIndiretos, setItensIndiretos] = useState<ItemCustoIndireto[]>([]);
+  const [bancoInsumos, setBancoInsumos] = useState<InsumoBase[]>([]);
   const [categoriaAtiva, setCategoriaAtiva] = useState<CategoriaIndireto | 'CPUS_INDIRETAS' | 'TAXAS'>('ADM_LOCAL_MO');
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(false);
@@ -105,12 +107,15 @@ export const AbaCustosIndiretos: React.FC<AbaCustosIndiretosProps> = ({
   const [itemEmEdicao, setItemEmEdicao] = useState<ItemCustoIndireto | null>(null);
 
   // Form State
+  const [formIdInsumoBase, setFormIdInsumoBase] = useState('');
   const [formCodigo, setFormCodigo] = useState('');
   const [formDescricao, setFormDescricao] = useState('');
   const [formUnidade, setFormUnidade] = useState('MÊS');
   const [formQuantidade, setFormQuantidade] = useState<number>(1);
   const [formPrecoUnitario, setFormPrecoUnitario] = useState<number>(0);
   const [formCategoria, setFormCategoria] = useState<CategoriaIndireto>('ADM_LOCAL_MO');
+  const [formDataInicio, setFormDataInicio] = useState('');
+  const [formDataFim, setFormDataFim] = useState('');
 
   // Taxas Corporativas
   const [taxas, setTaxas] = useState<TaxasCorporativasObra>({
@@ -131,13 +136,19 @@ export const AbaCustosIndiretos: React.FC<AbaCustosIndiretosProps> = ({
   const [savingTaxas, setSavingTaxas] = useState(false);
   const [taxasSalvasSucesso, setTaxasSalvasSucesso] = useState(false);
 
-  // Subscribe aos itens de custos indiretos da obra
+  // Subscribe aos itens de custos indiretos e banco de insumos da obra
   useEffect(() => {
     if (!activeObra) return;
-    const unsub = subscribeCustosIndiretos(activeObra.id, (list) => {
+    const unsub1 = subscribeCustosIndiretos(activeObra.id, (list) => {
       setItensIndiretos(list);
     });
-    return () => unsub();
+    const unsub2 = subscribeBancoInsumos(activeObra.id, (list) => {
+      setBancoInsumos(list);
+    });
+    return () => {
+      unsub1();
+      unsub2();
+    };
   }, [activeObra?.id]);
 
   if (!activeObra) {
@@ -243,11 +254,14 @@ export const AbaCustosIndiretos: React.FC<AbaCustosIndiretosProps> = ({
   // Abertura do modal para novo item
   const handleNovoItem = (cat?: CategoriaIndireto) => {
     setItemEmEdicao(null);
+    setFormIdInsumoBase('');
     setFormCodigo('');
     setFormDescricao('');
     setFormUnidade('MÊS');
     setFormQuantidade(1);
     setFormPrecoUnitario(0);
+    setFormDataInicio('');
+    setFormDataFim('');
     setFormCategoria(cat || (categoriaAtiva !== 'CPUS_INDIRETAS' && categoriaAtiva !== 'TAXAS' ? categoriaAtiva : 'ADM_LOCAL_MO'));
     setModalItemOpen(true);
   };
@@ -255,19 +269,63 @@ export const AbaCustosIndiretos: React.FC<AbaCustosIndiretosProps> = ({
   // Edição de item existente
   const handleEditarItem = (item: ItemCustoIndireto) => {
     setItemEmEdicao(item);
+    setFormIdInsumoBase(item.idInsumoBase || '');
     setFormCodigo(item.codigo || '');
     setFormDescricao(item.descricao);
     setFormUnidade(item.unidade);
     setFormQuantidade(item.quantidade);
     setFormPrecoUnitario(item.precoUnitario);
+    setFormDataInicio(item.dataInicio || '');
+    setFormDataFim(item.dataFim || '');
     setFormCategoria(item.categoria);
     setModalItemOpen(true);
+  };
+
+  // Ao selecionar um insumo do Banco de Insumos
+  const handleSelectInsumoBase = (insumoId: string) => {
+    setFormIdInsumoBase(insumoId);
+    const found = bancoInsumos.find((i) => i.id === insumoId || i.id_insumo === insumoId);
+    if (found) {
+      setFormCodigo(found.id_insumo || '');
+      setFormDescricao(found.descricao);
+      setFormUnidade(found.unid || 'MÊS');
+      setFormPrecoUnitario(found.pr_unit || 0);
+
+      // Sugere categoria com base no tipo do insumo
+      const tNorm = (found.tipo || '').toLowerCase();
+      if (tNorm.includes('mão') || tNorm.includes('mo')) {
+        setFormCategoria('ADM_LOCAL_MO');
+      } else if (tNorm.includes('equip') || tNorm === 'eq') {
+        setFormCategoria('EQUIPAMENTOS_INDIRETOS');
+      } else if (tNorm.includes('mat')) {
+        setFormCategoria('CANTEIRO');
+      } else if (tNorm.includes('serv')) {
+        setFormCategoria('DIVERSOS_CONSULTORIA');
+      }
+    }
+  };
+
+  // Atualização de quantidade automática ao mudar datas de início/fim
+  const handleCalculateDateMonths = (dtIni: string, dtFim: string) => {
+    if (!dtIni || !dtFim) return;
+    const d1 = new Date(dtIni);
+    const d2 = new Date(dtFim);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime()) || d2 < d1) return;
+
+    // Calcula quantidade de meses de vigência do recurso
+    const months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()) + 1;
+    if (months > 0) {
+      setFormQuantidade(months);
+    }
   };
 
   // Salvar item
   const handleSalvarItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formDescricao.trim()) return;
+    if (!formDescricao.trim()) {
+      alert('Selecione ou informe a descrição do recurso.');
+      return;
+    }
 
     const qtd = Number(formQuantidade) || 0;
     const prUn = Number(formPrecoUnitario) || 0;
@@ -275,12 +333,15 @@ export const AbaCustosIndiretos: React.FC<AbaCustosIndiretosProps> = ({
       id: itemEmEdicao?.id || `ind-${activeObra.id}-${Date.now()}`,
       obraId: activeObra.id,
       categoria: formCategoria,
+      idInsumoBase: formIdInsumoBase || undefined,
       codigo: formCodigo.trim(),
       descricao: formDescricao.trim(),
       unidade: formUnidade.trim() || 'MÊS',
       quantidade: qtd,
       precoUnitario: prUn,
-      custoTotal: qtd * prUn
+      custoTotal: qtd * prUn,
+      dataInicio: formDataInicio || undefined,
+      dataFim: formDataFim || undefined
     };
 
     setLoading(true);
@@ -899,6 +960,34 @@ export const AbaCustosIndiretos: React.FC<AbaCustosIndiretosProps> = ({
             </div>
 
             <form onSubmit={handleSalvarItem} className="p-5 space-y-4 text-xs">
+              {/* Seleção do Insumo no Banco de Insumos */}
+              <div className="bg-indigo-50/70 p-3 rounded-xl border border-indigo-200 space-y-2">
+                <label className="block font-bold text-indigo-950 flex items-center justify-between">
+                  <span>Insumo Base (Banco de Insumos):</span>
+                  <span className="text-[10px] text-indigo-700 font-normal">
+                    {bancoInsumos.length} insumos disponíveis
+                  </span>
+                </label>
+                <select
+                  value={formIdInsumoBase}
+                  onChange={(e) => handleSelectInsumoBase(e.target.value)}
+                  className="w-full px-3 py-2 border border-indigo-300 rounded-lg bg-white font-medium text-indigo-950 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  required
+                >
+                  <option value="">-- Selecione um insumo do Banco de Insumos --</option>
+                  {bancoInsumos.map((ins) => (
+                    <option key={ins.id || ins.id_insumo} value={ins.id || ins.id_insumo}>
+                      [{ins.id_insumo}] {ins.descricao} ({ins.unid}) - R$ {ins.pr_unit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </option>
+                  ))}
+                </select>
+                {bancoInsumos.length === 0 && (
+                  <p className="text-[11px] text-amber-700 font-medium">
+                    ⚠️ Nenhum insumo cadastrado no Banco de Insumos desta obra. Acesse a aba <strong>Banco de Insumos</strong> para importar o catálogo.
+                  </p>
+                )}
+              </div>
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Categoria:</label>
                 <select
@@ -915,13 +1004,13 @@ export const AbaCustosIndiretos: React.FC<AbaCustosIndiretosProps> = ({
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-1">
-                  <label className="block font-bold text-slate-700 mb-1">Código (Opcional):</label>
+                  <label className="block font-bold text-slate-700 mb-1">Código:</label>
                   <input
                     type="text"
                     value={formCodigo}
                     onChange={(e) => setFormCodigo(e.target.value)}
                     placeholder="Ex: MOI-01"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-slate-800"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-slate-800 bg-slate-50"
                   />
                 </div>
 
@@ -939,15 +1028,51 @@ export const AbaCustosIndiretos: React.FC<AbaCustosIndiretosProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Descrição do Item / Função:</label>
+                <label className="block font-bold text-slate-700 mb-1">Descrição do Recurso / Função:</label>
                 <input
                   type="text"
                   value={formDescricao}
                   onChange={(e) => setFormDescricao(e.target.value)}
-                  placeholder="Ex: Engenheiro Coordenador / Carro 4x4 / Gerador 100kVA"
+                  placeholder="Selecione um insumo acima..."
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-800 font-medium"
                   required
                 />
+              </div>
+
+              {/* Período de Atuação do Recurso Indireto (Data Início / Fim) */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                <span className="block font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                  Vigência do Recurso Indireto (Cálculo Automático de Meses)
+                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Data de Início:</label>
+                    <input
+                      type="date"
+                      value={formDataInicio}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormDataInicio(val);
+                        handleCalculateDateMonths(val, formDataFim);
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg font-mono text-slate-800 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Data de Término:</label>
+                    <input
+                      type="date"
+                      value={formDataFim}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormDataFim(val);
+                        handleCalculateDateMonths(formDataInicio, val);
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg font-mono text-slate-800 bg-white"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

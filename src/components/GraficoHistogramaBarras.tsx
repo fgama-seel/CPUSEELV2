@@ -146,11 +146,25 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
       const basePerMes = isVerba ? Math.floor(totalQtd / numMeses) || 1 : Math.round(totalQtd);
       const sobra = isVerba ? totalQtd - (basePerMes * numMeses) : 0;
 
+      const dtIni = item.dataInicio ? new Date(item.dataInicio + 'T00:00:00') : null;
+      const dtFim = item.dataFim ? new Date(item.dataFim + 'T23:59:59') : null;
+
       const mapa: Record<string, number> = {};
       dados.forEach((d, idx) => {
-        let val = basePerMes;
-        if (isVerba && idx === dados.length - 1 && sobra > 0) {
-          val += sobra;
+        let isActive = true;
+        if (dtIni && dtFim) {
+          const [ano, mes] = d.sortKey.split('-').map(Number);
+          const monthStart = new Date(ano, mes - 1, 1);
+          const monthEnd = new Date(ano, mes, 0);
+          isActive = monthEnd >= dtIni && monthStart <= dtFim;
+        }
+
+        let val = 0;
+        if (isActive) {
+          val = basePerMes;
+          if (isVerba && idx === dados.length - 1 && sobra > 0) {
+            val += sobra;
+          }
         }
         mapa[d.mesAno] = val;
       });
@@ -189,15 +203,7 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
       });
     });
 
-    if (resultado.length > 0) return resultado;
-
-    // Se nenhuma composicao indireta estiver cadastrada, lista estritamente o efetivo de apoio da obra sem fallbacks fixos
-    return [
-      { id: 'ind-gerente', cargo: 'Gerente de Contrato', qtdMax: 1, efetivoMensal: dados.reduce((acc, d) => ({ ...acc, [d.mesAno]: 1 }), {}) },
-      { id: 'ind-eng-civil', cargo: 'Engenheiro Civil', qtdMax: 1, efetivoMensal: dados.reduce((acc, d) => ({ ...acc, [d.mesAno]: 1 }), {}) },
-      { id: 'ind-mestre', cargo: 'Mestre de Obras', qtdMax: 1, efetivoMensal: dados.reduce((acc, d) => ({ ...acc, [d.mesAno]: 1 }), {}) },
-      { id: 'ind-tst', cargo: 'Técnico de Segurança do Trabalho', qtdMax: 1, efetivoMensal: dados.reduce((acc, d) => ({ ...acc, [d.mesAno]: 1 }), {}) }
-    ];
+    return resultado;
   }, [itensIndiretos, cpus, dados]);
 
   // 2. PROCESSAMENTO DINÂMICO DE MÃO DE OBRA DIRETA E EQUIPAMENTOS (100% REAL)
@@ -448,10 +454,24 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
       const basePerMes = isVerba ? Math.floor(totalQtd / numMeses) || 1 : Math.round(totalQtd);
       const sobra = isVerba ? totalQtd - (basePerMes * numMeses) : 0;
 
+      const dtIni = item.dataInicio ? new Date(item.dataInicio + 'T00:00:00') : null;
+      const dtFim = item.dataFim ? new Date(item.dataFim + 'T23:59:59') : null;
+
       const mapa: Record<string, number> = {};
       dados.forEach((d, idx) => {
-        let val = basePerMes;
-        if (isVerba && idx === dados.length - 1 && sobra > 0) val += sobra;
+        let isActive = true;
+        if (dtIni && dtFim) {
+          const [ano, mes] = d.sortKey.split('-').map(Number);
+          const monthStart = new Date(ano, mes - 1, 1);
+          const monthEnd = new Date(ano, mes, 0);
+          isActive = monthEnd >= dtIni && monthStart <= dtFim;
+        }
+
+        let val = 0;
+        if (isActive) {
+          val = basePerMes;
+          if (isVerba && idx === dados.length - 1 && sobra > 0) val += sobra;
+        }
         mapa[d.mesAno] = val;
       });
 
