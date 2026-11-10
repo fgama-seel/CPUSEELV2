@@ -205,16 +205,52 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
     const taskMap = new Map<number, ScheduleTask>(scheduleTasks.map((t) => [t.uniqueId, t]));
     const pqMap = new Map<string, PQItem>(pqItems.map((p) => [p.id, p]));
 
-    const moHorasMap: Record<string, { id: string; cpuCodigo?: string; cpuNome?: string; horas: Record<string, number>; desvio?: boolean; desvioMsg?: string }> = {};
-    const eqHorasMap: Record<string, { id: string; isVerba?: boolean; horas: Record<string, number> }> = {};
+    // Mapeamento de links efetivos (manuais ou automatizados por correspondência de cronograma XML + PQ)
+    const linksEfetivos: Array<{ task: ScheduleTask; pqItem: PQItem; qty: number }> = [];
 
-    const nomesMeses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-
-    if (allocationLinks.length > 0 && cpus.length > 0) {
+    if (allocationLinks.length > 0) {
       allocationLinks.forEach((link) => {
         const task = taskMap.get(link.taskUniqueId);
         const pqItem = pqMap.get(link.pqItemId);
-        if (!task || !pqItem || !task.startDate || !task.finishDate) return;
+        if (task && pqItem) {
+          linksEfetivos.push({
+            task,
+            pqItem,
+            qty: Number(link.calculatedQuantity) || Number(pqItem.quantidadeOrcada) || 1
+          });
+        }
+      });
+    }
+
+    // Fallback: Se não houver alocações manuais explícitas, mapeia automaticamente as tarefas do XML aos itens da PQ
+    if (linksEfetivos.length === 0 && scheduleTasks.length > 0 && pqItems.length > 0) {
+      scheduleTasks.forEach((task) => {
+        if (!task.startDate || !task.finishDate) return;
+        const pqMatch = pqItems.find(
+          (p) =>
+            (p.seq !== undefined && task.uniqueId === p.seq) ||
+            (p.codigoRecursoProject && (task.wbs === p.codigoRecursoProject || task.outlineNumber === p.codigoRecursoProject)) ||
+            (p.descricao && task.name && task.name.toLowerCase().includes(p.descricao.toLowerCase()))
+        );
+        if (pqMatch) {
+          linksEfetivos.push({
+            task,
+            pqItem: pqMatch,
+            qty: Number(pqMatch.quantidadeOrcada) || 1
+          });
+        }
+      });
+    }
+
+    // Mapas de horas agrupados por Cargo Normalizado e Equipamento Normalizado
+    const moCargoHorasMap: Record<string, { id: string; cargo: string; horas: Record<string, number>; cpusRelacionadas: Set<string>; temDesvio?: boolean; desvioMsg?: string }> = {};
+    const eqNomeHorasMap: Record<string, { id: string; nome: string; isVerba?: boolean; horas: Record<string, number> }> = {};
+
+    const nomesMeses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+    if (linksEfetivos.length > 0 && cpus.length > 0) {
+      linksEfetivos.forEach(({ task, pqItem, qty }) => {
+        if (!task.startDate || !task.finishDate) return;
 
         const cpu = cpus.find(
           (c) =>
@@ -227,13 +263,11 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
 
         // Checagem de Produtividade: CPU vs MS Project
         const prodEfetiva = (Number(cpu.prod_teorica) || 1) * (Number(cpu.praticabilidade) || 1);
-        const linkQty = Number(link.calculatedQuantity) || 0;
-
         let temDesvio = false;
         let desvioMsg = '';
 
-        if (prodEfetiva > 0 && linkQty > 0 && task.workingDaysDuration > 0) {
-          const diasTeoricosCpu = Math.ceil(linkQty / prodEfetiva);
+        if (prodEfetiva > 0 && qty > 0 && task.workingDaysDuration > 0) {
+          const diasTeoricosCpu = Math.ceil(qty / prodEfetiva);
           const diasProject = task.workingDaysDuration;
           const diffRatio = Math.abs(diasTeoricosCpu - diasProject) / diasProject;
 
@@ -274,7 +308,7 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
 
           const coef = Number(ins.coef) || 0;
           const unid = (ins.unid || '').toLowerCase();
-          const totalInsumoQty = linkQty * coef;
+          const totalInsumoQty = qty * coef;
 
           let totalHoras = totalInsumoQty;
           if (unid.includes('mes') || unid.includes('mês')) {
@@ -282,49 +316,121 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
           }
 
           const horasPorMes = totalHoras / totalMeses;
-          const insId = ins.id_insumo || ins.descricao;
+          const nomeClean = ins.descricao.trim();
 
           if (isMO) {
-            const key = `dir-mo-${cpu.code || cpu.id}-${insId}`;
-            if (!moHorasMap[key]) {
-              moHorasMap[key] = {
-                id: key,
-                cpuCodigo: cpu.code || String(cpu.sequencia || ''),
-                cpuNome: `${cpu.code ? cpu.code + ' - ' : ''}${ins.descricao}`,
+            const cargoKey = `cargo-mo-${nomeClean.toLowerCase()}`;
+            if (!moCargoHorasMap[cargoKey]) {
+              moCargoHorasMap[cargoKey] = {
+                id: cargoKey,
+                cargo: nomeClean,
                 horas: {},
-                desvio: temDesvio,
+                cpusRelacionadas: new Set(),
+                temDesvio,
                 desvioMsg
               };
             }
+            if (cpu.code) moCargoHorasMap[cargoKey].cpusRelacionadas.add(cpu.code);
+            if (temDesvio) {
+              moCargoHorasMap[cargoKey].temDesvio = true;
+              moCargoHorasMap[cargoKey].desvioMsg = desvioMsg;
+            }
+
             monthKeys.forEach((mKey) => {
-              moHorasMap[key].horas[mKey] = (moHorasMap[key].horas[mKey] || 0) + horasPorMes;
+              moCargoHorasMap[cargoKey].horas[mKey] = (moCargoHorasMap[cargoKey].horas[mKey] || 0) + horasPorMes;
             });
           } else {
-            const key = `eq-${cpu.code || cpu.id}-${insId}`;
-            if (!eqHorasMap[key]) {
-              eqHorasMap[key] = {
-                id: key,
+            const eqKey = `eq-${nomeClean.toLowerCase()}`;
+            if (!eqNomeHorasMap[eqKey]) {
+              eqNomeHorasMap[eqKey] = {
+                id: eqKey,
+                nome: nomeClean,
                 isVerba: unid.includes('mes') || unid.includes('mês') || unid.includes('gb'),
                 horas: {}
               };
             }
             monthKeys.forEach((mKey) => {
-              eqHorasMap[key].horas[mKey] = (eqHorasMap[key].horas[mKey] || 0) + horasPorMes;
+              eqNomeHorasMap[eqKey].horas[mKey] = (eqNomeHorasMap[eqKey].horas[mKey] || 0) + horasPorMes;
+            });
+          }
+        });
+      });
+    } else if (cpus.length > 0 && pqItems.length > 0 && dados.length > 0) {
+      // Fallback 2: Se ainda não houver cronograma XML ou alocações, projeta os insumos das CPUs sobre os meses do contrato
+      const numMeses = Math.max(1, dados.length);
+
+      pqItems.forEach((pq) => {
+        const qty = Number(pq.quantidadeOrcada) || 0;
+        if (qty <= 0) return;
+        const cpu = cpus.find(
+          (c) =>
+            (c.sequencia !== undefined && c.sequencia === pq.seq) ||
+            c.code === pq.codigoRecursoProject ||
+            c.id === pq.id ||
+            c.nome === pq.descricao
+        );
+        if (!cpu || !cpu.insumos) return;
+
+        cpu.insumos.forEach((ins) => {
+          const tipoNorm = (ins.tipo || '').toLowerCase();
+          const isMO = tipoNorm.includes('mão') || tipoNorm.includes('mao') || tipoNorm === 'mo';
+          const isEQ = tipoNorm.includes('equip') || tipoNorm === 'eq';
+          if (!isMO && !isEQ) return;
+
+          const coef = Number(ins.coef) || 0;
+          const unid = (ins.unid || '').toLowerCase();
+          const totalInsumoQty = qty * coef;
+
+          let totalHoras = totalInsumoQty;
+          if (unid.includes('mes') || unid.includes('mês')) {
+            totalHoras = totalInsumoQty * horasDivisor;
+          }
+
+          const horasPorMes = totalHoras / numMeses;
+          const nomeClean = ins.descricao.trim();
+
+          if (isMO) {
+            const cargoKey = `cargo-mo-${nomeClean.toLowerCase()}`;
+            if (!moCargoHorasMap[cargoKey]) {
+              moCargoHorasMap[cargoKey] = {
+                id: cargoKey,
+                cargo: nomeClean,
+                horas: {},
+                cpusRelacionadas: new Set()
+              };
+            }
+            if (cpu.code) moCargoHorasMap[cargoKey].cpusRelacionadas.add(cpu.code);
+            dados.forEach((d) => {
+              moCargoHorasMap[cargoKey].horas[d.mesAno] = (moCargoHorasMap[cargoKey].horas[d.mesAno] || 0) + horasPorMes;
+            });
+          } else {
+            const eqKey = `eq-${nomeClean.toLowerCase()}`;
+            if (!eqNomeHorasMap[eqKey]) {
+              eqNomeHorasMap[eqKey] = {
+                id: eqKey,
+                nome: nomeClean,
+                isVerba: unid.includes('mes') || unid.includes('mês') || unid.includes('gb'),
+                horas: {}
+              };
+            }
+            dados.forEach((d) => {
+              eqNomeHorasMap[eqKey].horas[d.mesAno] = (eqNomeHorasMap[eqKey].horas[d.mesAno] || 0) + horasPorMes;
             });
           }
         });
       });
     }
 
-    // Processa Mão de Obra Direta
+    // Processa Mão de Obra Direta Consolidada por Cargo
     const listaMO: FuncaoDiretaDetalhada[] = [];
-    Object.values(moHorasMap).forEach((item) => {
+    Object.values(moCargoHorasMap).forEach((item) => {
+      const cods = Array.from(item.cpusRelacionadas).join(', ');
       listaMO.push({
         id: item.id,
-        funcao: item.cpuNome || 'Operador de Campo',
-        cpuCodigo: item.cpuCodigo,
+        funcao: item.cargo,
+        cpuCodigo: cods || undefined,
         horasMensais: item.horas,
-        temDesvio: item.desvio,
+        temDesvio: item.temDesvio,
         desvioMsg: item.desvioMsg
       });
     });
@@ -359,7 +465,7 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
       });
     });
 
-    Object.values(eqHorasMap).forEach((item) => {
+    Object.values(eqNomeHorasMap).forEach((item) => {
       const efMensal: Record<string, number> = {};
       dados.forEach((d) => {
         const h = item.horas[d.mesAno] || 0;
@@ -374,7 +480,7 @@ export const GraficoHistogramaBarras: React.FC<GraficoHistogramaBarrasProps> = (
       });
       listaEQ.push({
         id: item.id,
-        nome: item.id.split('-').pop() || 'Equipamento de Geotecnia',
+        nome: item.nome,
         qtdMax: Math.max(0, ...Object.values(efMensal)),
         isVerbaMensal: item.isVerba,
         efetivoMensal: efMensal
