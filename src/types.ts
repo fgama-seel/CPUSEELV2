@@ -212,6 +212,12 @@ export interface Obra {
   };
   taxasCorporativas?: TaxasCorporativasObra;
   cronogramaTarefas?: TarefaCronograma[];
+  scheduleTasks?: ScheduleTask[];
+  allocationLinks?: AllocationLink[];
+  pqItems?: PQItem[];
+  recursosConfig?: RecursoProjectConfig[];
+  parametrosCaixa?: ParametrosFluxoCaixa;
+  versoesCronograma?: VersaoCronograma[];
   orcamentoOriginal: OrcamentoOriginal;
   emailsAcesso?: string[];
   mochilaMO?: MochilaMOConfig;

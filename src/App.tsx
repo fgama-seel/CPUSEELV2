@@ -11,6 +11,7 @@ import {
   saveCPU,
   createCPU,
   deleteCPU,
+  saveObra,
   createObra,
   deleteObra,
   createInsumoBase,
@@ -24,6 +25,11 @@ import {
   clearAllPendingCPUsFromCache
 } from './lib/pendingCache';
 import { ordenarInsumosCPU } from './lib/mochilaDefaults';
+import {
+  SEEL_SABESP_PQ_ITEMS,
+  SEEL_SABESP_SCHEDULE_TASKS,
+  SEEL_SABESP_ALLOCATIONS
+} from './lib/seelSabespDataset';
 
 // Components
 import { Header } from './components/Header';
@@ -119,19 +125,25 @@ export default function App() {
       });
     };
 
-    // Início 100% limpo caso não tenha dados salvos para esta obra
-    const rawPq = savedPq ? JSON.parse(savedPq) : [];
-    const rawTasks = savedTasks ? JSON.parse(savedTasks) : [];
-    const rawLinks = savedLinks ? JSON.parse(savedLinks) : [];
-    const rawRecursos = savedRecursos ? JSON.parse(savedRecursos) : [];
-    const rawVersoes = savedVersoes ? JSON.parse(savedVersoes) : [];
+    const currObra = obras.find((o) => o.id === activeObraId);
 
-    setPqItems(deduplicateById(rawPq));
-    setScheduleTasks(deduplicateTasks(rawTasks));
+    // Leitura resiliente: 1º localStorage -> 2º activeObra (Firestore) -> 3º Dataset Padrão SEEL
+    const rawPq = savedPq ? JSON.parse(savedPq) : (currObra?.pqItems && currObra.pqItems.length > 0 ? currObra.pqItems : SEEL_SABESP_PQ_ITEMS);
+    const rawTasks = savedTasks ? JSON.parse(savedTasks) : (currObra?.scheduleTasks && currObra.scheduleTasks.length > 0 ? currObra.scheduleTasks : SEEL_SABESP_SCHEDULE_TASKS);
+    const rawLinks = savedLinks ? JSON.parse(savedLinks) : (currObra?.allocationLinks && currObra.allocationLinks.length > 0 ? currObra.allocationLinks : SEEL_SABESP_ALLOCATIONS);
+    const rawRecursos = savedRecursos ? JSON.parse(savedRecursos) : (currObra?.recursosConfig || []);
+    const rawVersoes = savedVersoes ? JSON.parse(savedVersoes) : (currObra?.versoesCronograma || []);
+
+    const finalPq = deduplicateById(rawPq);
+    const finalTasks = deduplicateTasks(rawTasks);
+
+    setPqItems(finalPq);
+    setScheduleTasks(finalTasks);
     setAllocationLinks(rawLinks);
     setRecursosConfig(deduplicateById(rawRecursos));
     setVersoesCronograma(deduplicateById(rawVersoes));
-    setParametrosCaixa(savedParams ? JSON.parse(savedParams) : {
+
+    const finalParams = savedParams ? JSON.parse(savedParams) : (currObra?.parametrosCaixa || {
       lagFaturamentoMeses: 2,
       mesProducaoOffset: 0,
       mesFaturamentoOffset: 1,
@@ -141,7 +153,14 @@ export default function App() {
       impostosPerc: 6.65,
       productivityMultiplier: 1.0
     });
-  }, [activeObraId]);
+    setParametrosCaixa(finalParams);
+
+    // Salva no localStorage local para aquecimento da sessão
+    localStorage.setItem(`seel_matriz_${oKey}_pq`, JSON.stringify(finalPq));
+    localStorage.setItem(`seel_matriz_${oKey}_tasks`, JSON.stringify(finalTasks));
+    localStorage.setItem(`seel_matriz_${oKey}_links`, JSON.stringify(rawLinks));
+    localStorage.setItem(`seel_matriz_${oKey}_params`, JSON.stringify(finalParams));
+  }, [activeObraId, obras]);
 
   // Handlers que salvam estritamente na chave da obra ativa
   const handleUpdatePqItems = (newPq: PQItem[]) => {
@@ -414,6 +433,19 @@ export default function App() {
         await saveCPU(activeCpu);
         removePendingCPUFromCache(activeCpu.id);
         setPendingChanges(false);
+      }
+
+      // Sincroniza o estado completo da obra (cronograma, links, PQ e parâmetros) no Firestore
+      if (activeObra) {
+        await saveObra({
+          ...activeObra,
+          scheduleTasks,
+          allocationLinks,
+          pqItems,
+          recursosConfig,
+          parametrosCaixa,
+          versoesCronograma
+        });
       }
     } catch (err) {
       console.error('Erro ao salvar no Firestore:', err);
